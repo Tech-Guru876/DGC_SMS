@@ -48,7 +48,9 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    SESSION_COOKIE_SECURE = True
+    # Set SESSION_COOKIE_SECURE=true in .env only when the site is served over HTTPS.
+    # Leaving it false (the default) is required when running behind a plain-HTTP proxy.
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 
 
 class TestingConfig(Config):

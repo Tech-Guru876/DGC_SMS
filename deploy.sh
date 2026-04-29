@@ -40,6 +40,9 @@ SECRET_KEY=$SECRET
 FLASK_CONFIG=production
 DATABASE_URL=sqlite:///$APP_DIR/instance/dgc_sms.db
 
+# Set to true only when the site is served over HTTPS (SSL/TLS configured in nginx)
+SESSION_COOKIE_SECURE=false
+
 # Email - Gmail SMTP settings for DGC
 MAIL_SERVER=smtp.gmail.com
 MAIL_PORT=587
