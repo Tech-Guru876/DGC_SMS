@@ -34,6 +34,16 @@ def create_app(config_name=None):
             stacklevel=2,
         )
 
+    if config_name == 'production' and not app.config.get('SESSION_COOKIE_SECURE'):
+        import warnings
+        warnings.warn(
+            "SESSION_COOKIE_SECURE is disabled. Session cookies will be sent over "
+            "plain HTTP. Set SESSION_COOKIE_SECURE=true in .env once HTTPS is "
+            "configured to protect user sessions.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
     db.init_app(app)
     login_manager.init_app(app)
     mail.init_app(app)
