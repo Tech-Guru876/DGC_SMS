@@ -144,10 +144,12 @@
                     </td>
                     <td class="text-muted" style="font-size:.85rem;">{{ sample.date_received.strftime('%d %b %Y') }}</td>
                     <td style="font-size:.85rem;">
-                        {% if sample.sample_type == Branch.FOOD_ALCOHOL and sample.alcohol_type and avg_tat_by_alcohol_type.get(sample.alcohol_type) is not none %}
-                            <span class="text-info fw-semibold">{{ avg_tat_by_alcohol_type[sample.alcohol_type] }} d</span>
-                        {% elif avg_tat_by_branch.get(sample.sample_type) is not none %}
-                            <span class="text-info fw-semibold">{{ avg_tat_by_branch[sample.sample_type] }} d</span>
+                        {% set _alc_tat = avg_tat_by_alcohol_type.get(sample.alcohol_type) if sample.alcohol_type else none %}
+                        {% set _branch_tat = avg_tat_by_branch.get(sample.sample_type) %}
+                        {% if sample.sample_type == Branch.FOOD_ALCOHOL and _alc_tat is not none %}
+                            <span class="text-info fw-semibold">{{ _alc_tat }} d</span>
+                        {% elif _branch_tat is not none %}
+                            <span class="text-info fw-semibold">{{ _branch_tat }} d</span>
                         {% else %}
                             <span class="text-muted">—</span>
                         {% endif %}

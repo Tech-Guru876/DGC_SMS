@@ -420,7 +420,7 @@ def _auto_actuals(year, quarter):
         q = _base(branch_filter).filter(
             sa_exists().where(
                 SampleAssignment.sample_id == Sample.id,
-                SampleAssignment.out_of_spec == True,  # noqa: E712
+                SampleAssignment.out_of_spec.is_(True),
             )
         )
         return q.count()
@@ -458,7 +458,7 @@ def _out_of_spec_count_for_samples(sample_ids):
         sa_distinct(SampleAssignment.sample_id)
     ).filter(
         SampleAssignment.sample_id.in_(sample_ids),
-        SampleAssignment.out_of_spec == True,  # noqa: E712
+        SampleAssignment.out_of_spec.is_(True),
     ).count()
 
 
