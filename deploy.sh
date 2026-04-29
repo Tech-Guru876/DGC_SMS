@@ -127,7 +127,7 @@ systemctl restart dgc_sms 2>/dev/null || systemctl start dgc_sms
 
 # Validate nginx config, then do a clean stop → start cycle.
 # Using stop+start (rather than restart) guarantees the old process is fully
-# gone before we attempt to bind ports 80/443, which prevents "address already
+# gone before we attempt to bind port 8080, which prevents "address already
 # in use" failures when re-running the script or when a previous nginx.service
 # attempt left the unit in a failed state.
 nginx -t || { echo "ERROR: nginx configuration test failed — check the config above."; exit 1; }
@@ -139,8 +139,8 @@ systemctl start nginx || {
     journalctl -u nginx --no-pager -n 30 2>/dev/null || true
     echo ""
     echo "Common causes:"
-    echo "  1. Another process (e.g. Apache) is already using port 80 or 443."
-    echo '     Check with: ss -tlnp | grep -E '"'"':80\b|:443\b'"'"
+    echo "  1. Another process is already using port 8080."
+    echo '     Check with: ss -tlnp | grep '"'"':8080'"'"
     echo "  2. The TLS certificate files at $CERT_DIR are unreadable."
     echo "     Check with: ls -la $CERT_DIR"
     echo "  3. An nginx module required by the config is not installed."
@@ -148,9 +148,15 @@ systemctl start nginx || {
     exit 1
 }
 
+# Open port 8080 in the firewall if ufw is active
+if command -v ufw &>/dev/null && ufw status | grep -q "^Status: active"; then
+    echo "  >> Opening port 8080/tcp in ufw..."
+    ufw allow 8080/tcp
+fi
+
 echo ""
 echo "=== Deployment Complete ==="
-echo "App running at: https://$DOMAIN"
+echo "App running at: https://$DOMAIN:8080"
 echo ""
 echo "NOTE: Your browser will show a security warning because the certificate is"
 echo "      self-signed. To silence it, import the certificate into your browser"
