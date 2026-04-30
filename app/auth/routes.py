@@ -207,10 +207,14 @@ def user_edit(user_id):
             user.email = form.email.data
             roles_set = {Role[r] for r in form.roles.data}
             branches_set = {Branch[b] for b in form.branches.data}
-            permissions_set = {Permission[p] for p in (form.permissions.data or [])}
             user.roles = roles_set
             user.branches = branches_set
-            user.permissions = permissions_set
+            # Only admins can see and edit the extra-permissions section; skip
+            # updating permissions for HOD users to avoid accidentally clearing
+            # permissions that were previously granted by an admin.
+            if current_user.has_role(Role.ADMIN):
+                permissions_set = {Permission[p] for p in (form.permissions.data or [])}
+                user.permissions = permissions_set
             # Keep legacy single-value columns in sync
             user.role = next(iter(roles_set), None)
             user.branch = next(iter(branches_set), None)
