@@ -147,7 +147,7 @@ def sample_list():
 
     # Compute per-sample working-day countdown to expected_report_date.
     # For samples without an explicit expected_report_date, derive a virtual
-    # deadline from date_received + KPI TAT target days for the sample's lab.
+    # deadline from date_registered + KPI TAT target days for the sample's lab.
     terminal_statuses = {SampleStatus.CERTIFIED, SampleStatus.COMPLETED, SampleStatus.REJECTED}
     today = date.today()
 
@@ -166,17 +166,18 @@ def sample_list():
         if s.expected_report_date is None
         and s.status not in terminal_statuses
         and s.sample_type in _BRANCH_TAT_KEY
+        and s.date_registered is not None
     ]
 
-    # Fetch KPI targets for the fiscal year/quarter of each sample's date_received.
+    # Fetch KPI targets for the fiscal year/quarter of each sample's date_registered.
     kpi_targets_map = {}  # (kpi_key, year, quarter) -> target_value (days)
     fallback_targets_map = {}  # kpi_key -> latest target_value across any quarter
     if samples_needing_virtual:
         kpi_lookups = set()
         for s in samples_needing_virtual:
             kpi_key = _BRANCH_TAT_KEY[s.sample_type]
-            fy = fiscal_year_for_date(s.date_received)
-            fq = fiscal_quarter_for_date(s.date_received)
+            fy = fiscal_year_for_date(s.date_registered)
+            fq = fiscal_quarter_for_date(s.date_registered)
             kpi_lookups.add((kpi_key, fy, fq))
         conditions = [
             db.and_(
@@ -196,8 +197,8 @@ def sample_list():
             _BRANCH_TAT_KEY[s.sample_type]
             for s in samples_needing_virtual
             if (_BRANCH_TAT_KEY[s.sample_type],
-                fiscal_year_for_date(s.date_received),
-                fiscal_quarter_for_date(s.date_received)) not in kpi_targets_map
+                fiscal_year_for_date(s.date_registered),
+                fiscal_quarter_for_date(s.date_registered)) not in kpi_targets_map
         }
         if missing_keys:
             fallback_rows = KpiTarget.query.filter(
@@ -212,8 +213,8 @@ def sample_list():
     # Helper: look up TAT target days for a sample (quarter-specific, then fallback).
     def _get_target_days(s):
         kpi_key = _BRANCH_TAT_KEY[s.sample_type]
-        fy = fiscal_year_for_date(s.date_received)
-        fq = fiscal_quarter_for_date(s.date_received)
+        fy = fiscal_year_for_date(s.date_registered)
+        fq = fiscal_quarter_for_date(s.date_registered)
         return kpi_targets_map.get((kpi_key, fy, fq)) or fallback_targets_map.get(kpi_key)
 
     # Estimate rough upper bound for virtual deadlines to size the holiday window.
@@ -223,8 +224,9 @@ def sample_list():
     for s in samples_needing_virtual:
         target_days = _get_target_days(s)
         if target_days and target_days > 0:
+            reg_date = s.date_registered.date() if isinstance(s.date_registered, datetime) else s.date_registered
             rough_virtual_ends.append(
-                s.date_received + timedelta(days=int(target_days) * 2 + 10)
+                reg_date + timedelta(days=int(target_days) * 2 + 10)
             )
 
     # Pre-fetch holidays once for the full date window to avoid N+1 queries.
@@ -239,13 +241,13 @@ def sample_list():
     else:
         holidays = set()
 
-    # Compute virtual deadlines (date_received + KPI target working days).
+    # Compute virtual deadlines (date_registered + KPI target working days).
     virtual_deadlines = {}
     for s in samples_needing_virtual:
         target_days = _get_target_days(s)
         if target_days and target_days > 0:
             virtual_deadlines[s.id] = add_working_days(
-                s.date_received, int(target_days), holidays
+                s.date_registered, int(target_days), holidays
             )
 
     tat_remaining = {}
