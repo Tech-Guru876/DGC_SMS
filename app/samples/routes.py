@@ -921,6 +921,9 @@ def submit_report(assignment_id):
         ]),
     ).all()
 
+    today = jamaica_now().date()
+    min_test_date = assignment.sample.date_received
+
     form = ReportSubmitForm()
     if form.validate_on_submit():
         now = jamaica_now()
@@ -930,6 +933,23 @@ def submit_report(assignment_id):
         test_date = form.test_date.data
         meets_spec = form.meets_specifications.data or None
         report_comments = form.report_comments.data or None
+
+        # Validate test_date bounds (single-test case)
+        if test_date:
+            if test_date > today:
+                flash('Test date cannot be in the future.', 'danger')
+                return render_template(
+                    'samples/submit_report.html', form=form, assignment=assignment,
+                    sibling_assignments=sibling_assignments,
+                    today=today.isoformat(), min_test_date=min_test_date.isoformat(),
+                )
+            if test_date < min_test_date:
+                flash('Test date cannot be before the date the sample was received.', 'danger')
+                return render_template(
+                    'samples/submit_report.html', form=form, assignment=assignment,
+                    sibling_assignments=sibling_assignments,
+                    today=today.isoformat(), min_test_date=min_test_date.isoformat(),
+                )
 
         stored = original = None
         if form.report_file.data:
@@ -958,6 +978,7 @@ def submit_report(assignment_id):
         has_per_test = len(sibling_assignments) > 1
 
         # Apply the report to all sibling assignments that are submittable
+        date_error = None
         submitted_names = []
         for a in sibling_assignments:
             a.report_text = report_text
@@ -972,7 +993,13 @@ def submit_report(assignment_id):
                 per_meets_spec = request.form.get(f'meets_spec_{a.id}') or None
                 if per_test_date_str:
                     try:
-                        a.test_date = datetime.strptime(per_test_date_str, '%Y-%m-%d').date()
+                        parsed_date = datetime.strptime(per_test_date_str, '%Y-%m-%d').date()
+                        if parsed_date > today:
+                            date_error = f'Test date for {a.test_name} cannot be in the future.'
+                        elif parsed_date < min_test_date:
+                            date_error = f'Test date for {a.test_name} cannot be before the date the sample was received.'
+                        else:
+                            a.test_date = parsed_date
                     except ValueError:
                         a.test_date = None
                 else:
@@ -981,6 +1008,14 @@ def submit_report(assignment_id):
             else:
                 a.test_date = test_date
                 a.meets_specifications = meets_spec
+
+        if date_error:
+            flash(date_error, 'danger')
+            return render_template(
+                'samples/submit_report.html', form=form, assignment=assignment,
+                sibling_assignments=sibling_assignments,
+                today=today.isoformat(), min_test_date=min_test_date.isoformat(),
+            )
 
             if stored:
                 a.report_file = stored
@@ -1034,6 +1069,7 @@ def submit_report(assignment_id):
     return render_template(
         'samples/submit_report.html', form=form, assignment=assignment,
         sibling_assignments=sibling_assignments,
+        today=today.isoformat(), min_test_date=min_test_date.isoformat(),
     )
 
 
