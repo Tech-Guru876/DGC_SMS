@@ -216,7 +216,12 @@ class User(UserMixin, db.Model):
         rows = db.session.execute(
             select(user_roles).where(user_roles.c.user_id == self.id)
         ).fetchall()
-        self._roles = {row.role for row in rows}
+        result = {row.role for row in rows}
+        # Fall back to the legacy single-value column for users created before
+        # the multi-role association table was introduced.
+        if not result and self.role is not None:
+            result = {self.role}
+        self._roles = result
         # _roles_dirty intentionally NOT set – this is a DB read, not a write
         return self._roles
 
@@ -236,7 +241,12 @@ class User(UserMixin, db.Model):
         rows = db.session.execute(
             select(user_branches).where(user_branches.c.user_id == self.id)
         ).fetchall()
-        self._branches = {row.branch for row in rows}
+        result = {row.branch for row in rows}
+        # Fall back to the legacy single-value column for users created before
+        # the multi-branch association table was introduced.
+        if not result and self.branch is not None:
+            result = {self.branch}
+        self._branches = result
         # _branches_dirty intentionally NOT set – this is a DB read, not a write
         return self._branches
 
