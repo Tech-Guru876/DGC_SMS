@@ -2325,7 +2325,7 @@ _DATETIME_COLUMNS = {
     'hod_reviewed_at', 'certified_at', 'assigned_date',
     'date_completed', 'report_submitted_at',
     'preliminary_reviewed_at', 'reviewed_at', 'uploaded_at',
-    'reviewed_at', 'requested_at', 'decided_at',
+    'requested_at', 'decided_at',
     'performed_at', 'locked_until', 'last_seen',
 }
 
