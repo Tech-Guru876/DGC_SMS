@@ -162,11 +162,11 @@
                             </span>
                             {% elif _cert_days <= 28 %}
                             <span class="badge bg-warning text-dark">
-                                <i class="bi bi-patch-check me-1"></i>{{ _cert_days }} days
+                                <i class="bi bi-patch-check me-1"></i>{{ _cert_days }} day{{ 's' if _cert_days != 1 else '' }}
                             </span>
                             {% else %}
                             <span class="badge bg-danger">
-                                <i class="bi bi-patch-check me-1"></i>{{ _cert_days }} days
+                                <i class="bi bi-patch-check me-1"></i>{{ _cert_days }} day{{ 's' if _cert_days != 1 else '' }}
                             </span>
                             {% endif %}
                         {% else %}
