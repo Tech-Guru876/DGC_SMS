@@ -1544,12 +1544,17 @@ def submit_to_deputy(sample_id):
         flash('Only Senior Chemists can submit to Deputy.', 'danger')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
-    if sample.status != SampleStatus.ACCEPTED:
+    if sample.status not in (SampleStatus.ACCEPTED, SampleStatus.DEPUTY_RETURNED):
         flash('Sample must have all reports accepted before submitting to Deputy.', 'warning')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
+    is_resubmission = sample.status == SampleStatus.DEPUTY_RETURNED
     is_pharma = sample.sample_type == Branch.PHARMACEUTICAL
     form = SubmitToDeputyForm()
+
+    # Pre-fill the summary report on GET when resubmitting after a deputy return
+    if request.method == 'GET' and is_resubmission and sample.summary_report:
+        form.summary_report.data = sample.summary_report
 
     if form.validate_on_submit():
         # For pharmaceutical, require summary report
@@ -1557,7 +1562,7 @@ def submit_to_deputy(sample_id):
             flash('Summary report is required for pharmaceutical samples.', 'danger')
             return render_template(
                 'samples/submit_to_deputy.html', form=form, sample=sample,
-                is_pharma=is_pharma,
+                is_pharma=is_pharma, is_resubmission=is_resubmission,
             )
 
         if form.summary_report.data:
@@ -1572,27 +1577,43 @@ def submit_to_deputy(sample_id):
 
         sample.status = SampleStatus.DEPUTY_REVIEW
 
-        detail_parts = [f'Submitted to Deputy Government Chemist by {current_user.full_name}.']
+        if is_resubmission:
+            action_label = 'Resubmitted to Deputy'
+            detail_parts = [
+                f'Resubmitted to Deputy Government Chemist by {current_user.full_name} after corrections.'
+            ]
+            change_desc = (
+                f'Resubmitted to Deputy Government Chemist '
+                f'by {current_user.full_name} after corrections.'
+            )
+            flash_msg = 'Resubmitted to Deputy Government Chemist.'
+        else:
+            action_label = 'Submitted to Deputy'
+            detail_parts = [f'Submitted to Deputy Government Chemist by {current_user.full_name}.']
+            change_desc = (
+                f'Submitted to Deputy Government Chemist '
+                f'by {current_user.full_name}'
+            )
+            flash_msg = 'Reports submitted to Deputy Government Chemist.'
+
         if is_pharma:
             detail_parts.append('Summary report included (Pharmaceutical sample).')
 
-        _add_history(sample, 'Submitted to Deputy', ' '.join(detail_parts),
+        _add_history(sample, action_label, ' '.join(detail_parts),
                      action_type='Deputy Submission',
                      object_affected='Sample',
-                     change_description=(
-                         f'Submitted to Deputy Government Chemist '
-                         f'by {current_user.full_name}'))
+                     change_description=change_desc)
         db.session.commit()
 
         notify_submitted_to_deputy(sample)
         db.session.commit()
 
-        flash('Reports submitted to Deputy Government Chemist.', 'success')
+        flash(flash_msg, 'success')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
     return render_template(
         'samples/submit_to_deputy.html', form=form, sample=sample,
-        is_pharma=is_pharma,
+        is_pharma=is_pharma, is_resubmission=is_resubmission,
     )
 
 
