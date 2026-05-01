@@ -49,6 +49,13 @@ def _send_async_email(app, msg, smtp_cfg=None):
                 from email.mime.text import MIMEText as _MIMEText
 
                 sender = smtp_cfg.get('sender') or smtp_cfg.get('username') or ''
+                if not sender:
+                    app.logger.error(
+                        'SMTP send skipped: no sender address configured. '
+                        'Set a Sender Address or Username in the Mail Server settings.'
+                    )
+                    return
+
                 mime = MIMEMultipart('alternative')
                 mime['Subject'] = msg.subject
                 mime['From'] = sender
@@ -63,6 +70,14 @@ def _send_async_email(app, msg, smtp_cfg=None):
                 port = smtp_cfg['port']
                 username = smtp_cfg.get('username')
                 password = smtp_cfg.get('password')
+
+                # Warn when credentials would be sent over an unencrypted connection
+                if username and password and not smtp_cfg.get('use_tls'):
+                    app.logger.warning(
+                        'SMTP credentials are being sent without TLS encryption (port %s). '
+                        'Enable TLS in the Mail Server settings if your server supports it.',
+                        port,
+                    )
 
                 with smtplib.SMTP(server, port) as smtp:
                     if smtp_cfg.get('use_tls'):
