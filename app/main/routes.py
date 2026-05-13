@@ -1582,8 +1582,9 @@ def analyst_report():
         selected_analyst = analyst_data[analyst_id]
         tests = list(selected_analyst['tests'])
 
-        # Sort the detail tests
+        # Sort the detail tests; nulls always placed at the end of the result
         detail_reverse = (detail_dir == 'desc')
+        null_date = date.min if detail_reverse else date.max
         if detail_sort == 'lab':
             tests.sort(key=lambda t: t.sample.lab_number or '', reverse=detail_reverse)
         elif detail_sort == 'sample':
@@ -1595,9 +1596,9 @@ def analyst_report():
         elif detail_sort == 'status':
             tests.sort(key=lambda t: t.status.value if t.status else '', reverse=detail_reverse)
         elif detail_sort == 'completed_date':
-            tests.sort(key=lambda t: t.date_completed or date.min, reverse=detail_reverse)
+            tests.sort(key=lambda t: t.date_completed or null_date, reverse=detail_reverse)
         else:  # 'assigned' (default)
-            tests.sort(key=lambda t: t.assigned_date or date.min, reverse=detail_reverse)
+            tests.sort(key=lambda t: t.assigned_date or null_date, reverse=detail_reverse)
 
         total_detail = len(tests)
         detail_total_pages = max(1, (total_detail + DETAIL_PER_PAGE - 1) // DETAIL_PER_PAGE)
