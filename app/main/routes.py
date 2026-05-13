@@ -25,6 +25,8 @@ from app.models import (
     Invoice, InvoiceItem, DropdownConfig,
 )
 
+REPORT_PER_PAGE = 25
+
 
 def _current_fiscal_year():
     """Return the current fiscal year (April-March)."""
@@ -807,9 +809,16 @@ def pharma_report():
     # Available years (fiscal)
     available_years = _available_fiscal_years()
 
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    total_pages = max(1, (total + REPORT_PER_PAGE - 1) // REPORT_PER_PAGE)
+    page = max(1, min(page, total_pages))
+    page_start = (page - 1) * REPORT_PER_PAGE
+    page_samples = samples[page_start:page_start + REPORT_PER_PAGE]
+
     return render_template(
         'pharma_report.html',
-        samples=samples,
+        samples=page_samples,
         year=year,
         quarter=quarter,
         month=month,
@@ -826,6 +835,8 @@ def pharma_report():
         out_of_spec_count=out_of_spec_count,
         sample_tat=sample_tat,
         SampleStatus=SampleStatus,
+        page=page,
+        total_pages=total_pages,
     )
 
 
@@ -980,9 +991,16 @@ def milk_report():
     # Available years (fiscal)
     available_years = _available_fiscal_years()
 
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    total_pages = max(1, (total + REPORT_PER_PAGE - 1) // REPORT_PER_PAGE)
+    page = max(1, min(page, total_pages))
+    page_start = (page - 1) * REPORT_PER_PAGE
+    page_samples = samples[page_start:page_start + REPORT_PER_PAGE]
+
     return render_template(
         'milk_report.html',
-        samples=samples,
+        samples=page_samples,
         year=year,
         quarter=quarter,
         month=month,
@@ -998,6 +1016,8 @@ def milk_report():
         out_of_spec_count=out_of_spec_count,
         sample_tat=sample_tat,
         SampleStatus=SampleStatus,
+        page=page,
+        total_pages=total_pages,
     )
 
 
@@ -1148,9 +1168,16 @@ def toxicology_report():
 
     available_years = _available_fiscal_years()
 
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    total_pages = max(1, (total + REPORT_PER_PAGE - 1) // REPORT_PER_PAGE)
+    page = max(1, min(page, total_pages))
+    page_start = (page - 1) * REPORT_PER_PAGE
+    page_samples = samples[page_start:page_start + REPORT_PER_PAGE]
+
     return render_template(
         'toxicology_report.html',
-        samples=samples,
+        samples=page_samples,
         year=year,
         quarter=quarter,
         month=month,
@@ -1166,6 +1193,8 @@ def toxicology_report():
         out_of_spec_count=out_of_spec_count,
         sample_tat=sample_tat,
         SampleStatus=SampleStatus,
+        page=page,
+        total_pages=total_pages,
     )
 
 
@@ -1331,9 +1360,16 @@ def alcohol_report():
 
     available_years = _available_fiscal_years()
 
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    total_pages = max(1, (total + REPORT_PER_PAGE - 1) // REPORT_PER_PAGE)
+    page = max(1, min(page, total_pages))
+    page_start = (page - 1) * REPORT_PER_PAGE
+    page_samples = samples[page_start:page_start + REPORT_PER_PAGE]
+
     return render_template(
         'alcohol_report.html',
-        samples=samples,
+        samples=page_samples,
         year=year,
         quarter=quarter,
         month=month,
@@ -1350,6 +1386,8 @@ def alcohol_report():
         sample_tat=sample_tat,
         alcohol_type_tat=alcohol_type_tat,
         SampleStatus=SampleStatus,
+        page=page,
+        total_pages=total_pages,
     )
 
 

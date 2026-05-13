@@ -130,7 +130,10 @@
 <!-- Sample Table (Feature 2: all required fields + TAT working days) -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Pharmaceutical Samples — FY {{ year }}/{{ year + 1 }}{% if quarter %} Q{{ quarter }}{% endif %}{% if month %} (Month {{ month }}){% endif %}</span>
+        <span>
+            Pharmaceutical Samples — FY {{ year }}/{{ year + 1 }}{% if quarter %} Q{{ quarter }}{% endif %}{% if month %} (Month {{ month }}){% endif %}
+            {% if total_pages > 1 %}<span class="text-muted ms-2 small">— page {{ page }} of {{ total_pages }}</span>{% endif %}
+        </span>
         <a href="{{ url_for('main.pharma_report_download', year=year, quarter=quarter, month=month) }}"
            class="btn btn-outline-primary btn-sm">
             <i class="bi bi-download me-1"></i>Download CSV
@@ -204,6 +207,30 @@
             </tbody>
         </table>
     </div>
+    {% if total_pages > 1 %}
+    <div class="card-footer d-flex justify-content-between align-items-center">
+        <small class="text-muted">Page {{ page }} of {{ total_pages }} ({{ total }} sample{{ 's' if total != 1 else '' }} total)</small>
+        <nav aria-label="Pharmaceutical report pagination">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('main.pharma_report', year=year, quarter=quarter, month=month, status=status_filter, date_reported_from=date_reported_from, date_reported_to=date_reported_to, oos=oos_filter, page=page - 1) }}">&laquo;</a>
+                </li>
+                {% for p in range(1, total_pages + 1) %}
+                {% if p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('main.pharma_report', year=year, quarter=quarter, month=month, status=status_filter, date_reported_from=date_reported_from, date_reported_to=date_reported_to, oos=oos_filter, page=p) }}">{{ p }}</a>
+                </li>
+                {% elif p == page - 3 or p == page + 3 %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+                {% endfor %}
+                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('main.pharma_report', year=year, quarter=quarter, month=month, status=status_filter, date_reported_from=date_reported_from, date_reported_to=date_reported_to, oos=oos_filter, page=page + 1) }}">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Quick links -->
