@@ -131,7 +131,7 @@
                     <div class="row g-3">
                         <div class="col-12">
                             {{ form.action.label(class="form-label fw-semibold") }}
-                            {{ form.action(class="form-select", id="reviewAction") }}
+                            {{ form.action(class="form-select") }}
                             {% for error in form.action.errors %}
                             <div class="invalid-feedback d-block">{{ error }}</div>
                             {% endfor %}
@@ -145,6 +145,13 @@
                             {{ form.review_comments.label(class="form-label fw-semibold") }}
                             {{ form.review_comments(class="form-control", rows=4, placeholder="Enter review comments (required for corrections)") }}
                         </div>
+                        {% if grouped_mode and sibling_assignments|length > 1 %}
+                        <div class="col-12 d-none" id="returnScopeContainer">
+                            {{ form.return_scope.label(class="form-label fw-semibold") }}
+                            {{ form.return_scope(class="form-select") }}
+                            <div class="form-text">Choose whether to return only this report or all grouped reports.</div>
+                        </div>
+                        {% endif %}
 
                         <div class="col-12 d-flex gap-2 pt-2">
                             {{ form.submit(class="btn btn-primary") }}
@@ -222,6 +229,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     updateRowColors();
     checkNoBlocking();
+
+    var actionSelect = document.getElementById('action');
+    var returnScopeContainer = document.getElementById('returnScopeContainer');
+    function toggleReturnScope() {
+        if (!returnScopeContainer || !actionSelect) return;
+        if (actionSelect.value === 'returned') {
+            returnScopeContainer.classList.remove('d-none');
+        } else {
+            returnScopeContainer.classList.add('d-none');
+        }
+    }
+    if (actionSelect) {
+        actionSelect.addEventListener('change', toggleReturnScope);
+        toggleReturnScope();
+    }
 });
 </script>
 {% endblock %}

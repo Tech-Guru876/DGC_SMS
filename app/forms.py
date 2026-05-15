@@ -921,6 +921,15 @@ class PreliminaryReviewForm(FlaskForm):
         validators=[DataRequired()],
     )
     review_comments = TextAreaField('Comments', validators=[Optional()])
+    return_scope = SelectField(
+        'Return Scope',
+        choices=[
+            ('single', 'Return selected report only'),
+            ('all', 'Return all reports for all assigned tests'),
+        ],
+        default='single',
+        validators=[Optional()],
+    )
     submit = SubmitField('Submit Review')
 
     # Ordered checklist items grouped by category for template rendering
@@ -977,6 +986,15 @@ class ReportReviewForm(FlaskForm):
         validators=[Optional()],
     )
     review_comments = TextAreaField('Comments', validators=[Optional()])
+    return_scope = SelectField(
+        'Return Scope',
+        choices=[
+            ('single', 'Return selected report only'),
+            ('all', 'Return all reports for all assigned tests'),
+        ],
+        default='single',
+        validators=[Optional()],
+    )
     submit = SubmitField('Submit Review')
 
 
