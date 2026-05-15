@@ -1318,8 +1318,11 @@ def preliminary_review(assignment_id):
             ).group_by(ReviewHistory.assignment_id).all()
         )
 
+        return_scope = (form.return_scope.data or 'single')
+        return_all = action == 'returned' and grouped_mode and return_scope == 'all'
         target_assignments = (
-            [assignment] if action == 'returned' and grouped_mode else sibling_assignments
+            sibling_assignments if return_all
+            else ([assignment] if action == 'returned' and grouped_mode else sibling_assignments)
         )
 
         reviewed_names = []
@@ -1472,8 +1475,11 @@ def review_report(assignment_id):
             ).group_by(ReviewHistory.assignment_id).all()
         )
 
+        return_scope = (form.return_scope.data or 'single')
+        return_all = action == 'returned' and grouped_mode and return_scope == 'all'
         target_assignments = (
-            [assignment] if action == 'returned' and grouped_mode else sibling_assignments
+            sibling_assignments if return_all
+            else ([assignment] if action == 'returned' and grouped_mode else sibling_assignments)
         )
 
         reviewed_names = []
