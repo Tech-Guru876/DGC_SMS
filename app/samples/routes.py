@@ -1733,7 +1733,8 @@ def deputy_review(sample_id):
             'returned': 'returned to Senior Chemist',
             'rejected': 'rejected',
         }.get(action, action)
-        flash(f'Submission has been {action_text}.', 'success')
+        flash_category = 'warning' if action == 'rejected' else 'success'
+        flash(f'Submission has been {action_text}.', flash_category)
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
     assignments = sample.assignments.all()
