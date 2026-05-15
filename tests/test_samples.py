@@ -620,6 +620,68 @@ def test_technical_grouped_return_only_returns_selected_assignment(app, client):
         db.session.commit()
 
 
+def test_technical_grouped_return_can_return_second_selected_assignment(app, client):
+    """Grouped technical return should work for any selected report, not just the first."""
+    officer_id, sc_id, chemist_id, deputy_id, hod_id = _setup_users(app)
+    _login(client, 'officer')
+    _register_sample(client)
+    client.get('/auth/logout')
+
+    _login(client, 'senior')
+    with app.app_context():
+        sample = Sample.query.first()
+    client.post(f'/samples/{sample.id}/assign', data={
+        'chemist_ids': [chemist_id],
+        'test_name': 'Tech Test A',
+    }, follow_redirects=True)
+    client.post(f'/samples/{sample.id}/assign', data={
+        'chemist_ids': [chemist_id],
+        'test_name': 'Tech Test B',
+    }, follow_redirects=True)
+    client.get('/auth/logout')
+
+    _login(client, 'chemist')
+    with app.app_context():
+        assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+        first_assignment_id = assignments[0].id
+        second_assignment_id = assignments[1].id
+    client.post(f'/samples/assignment/{first_assignment_id}/report', data={
+        'report_text': 'Initial report for both tests.',
+        'report_file': _report_file(),
+    }, content_type='multipart/form-data', follow_redirects=True)
+    client.get('/auth/logout')
+
+    _login(client, 'officer')
+    client.post(f'/samples/assignment/{first_assignment_id}/preliminary-review', data={
+        'action': 'approved',
+        'review_comments': 'A ok',
+    }, follow_redirects=True)
+    client.post(f'/samples/assignment/{second_assignment_id}/preliminary-review', data={
+        'action': 'approved',
+        'review_comments': 'B ok',
+    }, follow_redirects=True)
+    client.get('/auth/logout')
+
+    with app.app_context():
+        Setting.set('technical_review_grouped', 'true')
+        db.session.commit()
+
+    _login(client, 'senior')
+    resp = client.post(f'/samples/assignment/{second_assignment_id}/review', data={
+        'action': 'returned',
+        'review_comments': 'Only Test B needs revision.',
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+
+    with app.app_context():
+        assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+        assert assignments[0].status == AssignmentStatus.UNDER_TECHNICAL_REVIEW
+        assert assignments[1].status == AssignmentStatus.RETURNED
+        assert assignments[1].return_stage == 'technical'
+        Setting.set('technical_review_grouped', 'false')
+        db.session.commit()
+
+
 def test_full_workflow(app, client):
     """Test the complete 26-step workflow end to end."""
     officer_id, sc_id, chemist_id, deputy_id, hod_id = _setup_users(app)
