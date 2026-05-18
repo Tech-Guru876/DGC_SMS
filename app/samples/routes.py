@@ -120,6 +120,10 @@ def _can_submit_to_deputy(sample):
     )
 
 
+def _can_show_submit_to_deputy(sample):
+    return _can_submit_to_deputy(sample) and sample.status != SampleStatus.DEPUTY_RETURNED
+
+
 # ---------------------------------------------------------------------------
 # List / Dashboard views
 # ---------------------------------------------------------------------------
@@ -529,13 +533,7 @@ def register():
 def detail(sample_id):
     sample = db.get_or_404(Sample, sample_id)
     assignments = sample.assignments.all()
-    can_submit_to_deputy = (
-        sample.status == SampleStatus.ACCEPTED
-        or (
-            sample.status != SampleStatus.DEPUTY_RETURNED
-            and _assignments_ready_for_deputy(sample)
-        )
-    )
+    can_submit_to_deputy = _can_show_submit_to_deputy(sample)
     review_page = request.args.get('review_page', 1, type=int)
     activity_page = request.args.get('activity_page', 1, type=int)
     history_pagination = sample.history.paginate(
