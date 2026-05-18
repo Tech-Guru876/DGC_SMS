@@ -60,6 +60,29 @@ def _save_file(file_storage):
     return stored, original
 
 
+_DROPDOWN_FIELD_CATEGORIES = [
+    ('formulation_type', 'formulation_type', '-- Select Formulation --'),
+    ('active_ingredient', 'api', '-- Select API --'),
+    ('toxicology_sample_type_name', 'toxicology_sample_type', '-- Select Sample Type --'),
+]
+
+
+def _apply_dropdown_choices(form):
+    """Override SelectField choices from DropdownConfig if DB entries exist.
+
+    Falls back to hardcoded defaults when no active entries are configured for
+    a category, so existing behaviour is preserved until the admin configures
+    the dropdown.
+    """
+    for field_name, category, blank_label in _DROPDOWN_FIELD_CATEGORIES:
+        field = getattr(form, field_name, None)
+        if field is None:
+            continue
+        db_choices = DropdownConfig.choices_for(category)
+        if db_choices:
+            field.choices = [('', blank_label)] + db_choices
+
+
 def _get_field(form, name):
     """Return the value of an optional form field, or None if absent/empty."""
     field = getattr(form, name, None)
@@ -347,6 +370,7 @@ def register():
         selected_type = next(iter(Branch)).name
     FormClass = get_sample_register_form(selected_type)
     form = FormClass()
+    _apply_dropdown_choices(form)
 
     if request.method == 'GET' and selected_type in Branch.__members__:
         form.sample_type.data = selected_type
@@ -544,6 +568,7 @@ def edit(sample_id):
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
     form = SampleEditForm(obj=sample)
+    _apply_dropdown_choices(form)
     # Ensure the Laboratory dropdown is pre-selected with the current value.
     # obj=sample sets sample_type to the Branch enum, but the SelectField
     # expects the enum .name string to match its choices.

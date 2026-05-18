@@ -178,7 +178,8 @@ def test_pharma_report_renders(app, client):
     _setup_admin(app)
     _register_pharma_sample(app, 'PH-R01', 'Aspirin', certified=True)
     _login(client, 'admin')
-    resp = client.get('/reports/pharma?year=2026')
+    # certified_at is Feb 2026 → fiscal year 2025 (Apr 2025 – Mar 2026)
+    resp = client.get('/reports/pharma?year=2025')
     assert resp.status_code == 200
     assert b'Pharmaceutical Report' in resp.data
     assert b'PH-R01' in resp.data
@@ -189,12 +190,11 @@ def test_pharma_report_quarter_filter(app, client):
     _setup_admin(app)
     _register_pharma_sample(app, 'PH-Q01')
     _login(client, 'admin')
-    # Q1 should include January samples
+    # Uncertified samples carry forward – they appear in every quarter
     resp = client.get('/reports/pharma?year=2026&quarter=1')
     assert b'PH-Q01' in resp.data
-    # Q3 should not include January samples
     resp = client.get('/reports/pharma?year=2026&quarter=3')
-    assert b'PH-Q01' not in resp.data
+    assert b'PH-Q01' in resp.data
 
 
 def test_pharma_report_download_csv(app, client):
@@ -272,7 +272,8 @@ def test_milk_report_renders(app, client):
     _setup_admin(app)
     _register_milk_sample(app, 'MILK-R01', 'Farm Milk A', certified=True)
     _login(client, 'admin')
-    resp = client.get('/reports/milk?year=2026')
+    # certified_at is Feb 2026 → fiscal year 2025 (Apr 2025 – Mar 2026)
+    resp = client.get('/reports/milk?year=2025')
     assert resp.status_code == 200
     assert b'Milk Sample Report' in resp.data
     assert b'MILK-R01' in resp.data
@@ -283,12 +284,11 @@ def test_milk_report_quarter_filter(app, client):
     _setup_admin(app)
     _register_milk_sample(app, 'MILK-Q01')
     _login(client, 'admin')
-    # Q1 should include January samples
+    # Uncertified samples carry forward – they appear in every quarter
     resp = client.get('/reports/milk?year=2026&quarter=1')
     assert b'MILK-Q01' in resp.data
-    # Q3 should not include January samples
     resp = client.get('/reports/milk?year=2026&quarter=3')
-    assert b'MILK-Q01' not in resp.data
+    assert b'MILK-Q01' in resp.data
 
 
 def test_milk_report_download_csv(app, client):
@@ -306,7 +306,8 @@ def test_milk_report_shows_turnaround(app, client):
     _setup_admin(app)
     _register_milk_sample(app, 'MILK-TAT01', certified=True)
     _login(client, 'admin')
-    resp = client.get('/reports/milk?year=2026')
+    # certified_at is Feb 2026 → fiscal year 2025 (Apr 2025 – Mar 2026)
+    resp = client.get('/reports/milk?year=2025')
     assert resp.status_code == 200
     # Certified sample should show TAT (31 days: Jan 15 → Feb 15)
     assert b'31' in resp.data

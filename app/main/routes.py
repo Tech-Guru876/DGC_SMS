@@ -59,6 +59,55 @@ def _fiscal_year_filter(query, date_column, year, quarter=None):
     return query.filter(date_column >= start, date_column <= end)
 
 
+_CERTIFIED_STATUSES = (SampleStatus.CERTIFIED, SampleStatus.COMPLETED)
+
+
+def _apply_certified_quarter_filter(q, year, quarter, month=0):
+    """Filter a sample query by certification date while carrying forward uncertified samples.
+
+    Certified/Completed samples are shown in the fiscal period of *certified_at*.
+    All other statuses (in-progress, under review, etc.) are always included so
+    that pending work is carried forward across periods.
+    """
+    from sqlalchemy import or_, and_, extract as sa_extract
+
+    if month and 1 <= month <= 12:
+        fy_start, fy_end = fiscal_year_date_range(year, None)
+        q = q.filter(or_(
+            and_(
+                Sample.status.in_(_CERTIFIED_STATUSES),
+                Sample.certified_at.isnot(None),
+                Sample.certified_at >= fy_start,
+                Sample.certified_at <= fy_end,
+                sa_extract('month', Sample.certified_at) == month,
+            ),
+            Sample.status.notin_(_CERTIFIED_STATUSES),
+        ))
+    elif quarter in (1, 2, 3, 4):
+        fy_start, fy_end = fiscal_year_date_range(year, quarter)
+        q = q.filter(or_(
+            and_(
+                Sample.status.in_(_CERTIFIED_STATUSES),
+                Sample.certified_at.isnot(None),
+                Sample.certified_at >= fy_start,
+                Sample.certified_at <= fy_end,
+            ),
+            Sample.status.notin_(_CERTIFIED_STATUSES),
+        ))
+    else:
+        fy_start, fy_end = fiscal_year_date_range(year, None)
+        q = q.filter(or_(
+            and_(
+                Sample.status.in_(_CERTIFIED_STATUSES),
+                Sample.certified_at.isnot(None),
+                Sample.certified_at >= fy_start,
+                Sample.certified_at <= fy_end,
+            ),
+            Sample.status.notin_(_CERTIFIED_STATUSES),
+        ))
+    return q
+
+
 def _maybe_send_report_reminders():
     """Run report-date reminders at most once per calendar day.
 
@@ -741,14 +790,8 @@ def pharma_report():
     q = Sample.query.filter(
         Sample.sample_type.in_([Branch.PHARMACEUTICAL, Branch.PHARMACEUTICAL_NR]),
     )
-    # Apply fiscal year / quarter / month filter
-    if month and 1 <= month <= 12:
-        # Filter by specific calendar month within the chosen fiscal year's calendar range
-        q = _fiscal_year_filter(q, Sample.date_registered, year, None)
-        q = q.filter(db.extract('month', Sample.date_registered) == month)
-    else:
-        q = _fiscal_year_filter(q, Sample.date_registered, year,
-                                quarter if quarter else None)
+    # Certified samples shown by certification date; uncertified carried forward
+    q = _apply_certified_quarter_filter(q, year, quarter, month)
 
     if status_filter:
         try:
@@ -757,19 +800,27 @@ def pharma_report():
         except ValueError:
             pass
 
-    # Date Reported filter (Feature 8)
+    # Date Reported filter – applies to certified_at; uncertified always pass through
     if date_reported_from:
         try:
             from datetime import date as _date
+            from sqlalchemy import or_ as _or
             dr_from = _date.fromisoformat(date_reported_from)
-            q = q.filter(Sample.certified_at >= dr_from)
+            q = q.filter(_or(
+                Sample.certified_at >= dr_from,
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
     if date_reported_to:
         try:
             from datetime import date as _date
+            from sqlalchemy import or_ as _or
             dr_to = _date.fromisoformat(date_reported_to)
-            q = q.filter(Sample.certified_at <= dr_to)
+            q = q.filter(_or(
+                Sample.certified_at <= dr_to,
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
 
@@ -869,12 +920,7 @@ def pharma_report_download():
     q = Sample.query.filter(
         Sample.sample_type.in_([Branch.PHARMACEUTICAL, Branch.PHARMACEUTICAL_NR]),
     )
-    if month and 1 <= month <= 12:
-        q = _fiscal_year_filter(q, Sample.date_registered, year, None)
-        q = q.filter(db.extract('month', Sample.date_registered) == month)
-    else:
-        q = _fiscal_year_filter(q, Sample.date_registered, year,
-                                quarter if quarter in (1, 2, 3, 4) else None)
+    q = _apply_certified_quarter_filter(q, year, quarter, month)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -939,12 +985,7 @@ def milk_report():
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_MILK,
     )
-    if month and 1 <= month <= 12:
-        q = _fiscal_year_filter(q, Sample.date_registered, year, None)
-        q = q.filter(db.extract('month', Sample.date_registered) == month)
-    else:
-        q = _fiscal_year_filter(q, Sample.date_registered, year,
-                                quarter if quarter else None)
+    q = _apply_certified_quarter_filter(q, year, quarter, month)
 
     if status_filter:
         try:
@@ -956,13 +997,21 @@ def milk_report():
     if date_reported_from:
         try:
             from datetime import date as _date
-            q = q.filter(Sample.certified_at >= _date.fromisoformat(date_reported_from))
+            from sqlalchemy import or_ as _or
+            q = q.filter(_or(
+                Sample.certified_at >= _date.fromisoformat(date_reported_from),
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
     if date_reported_to:
         try:
             from datetime import date as _date
-            q = q.filter(Sample.certified_at <= _date.fromisoformat(date_reported_to))
+            from sqlalchemy import or_ as _or
+            q = q.filter(_or(
+                Sample.certified_at <= _date.fromisoformat(date_reported_to),
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
 
@@ -1049,8 +1098,7 @@ def milk_report_download():
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_MILK,
     )
-    q = _fiscal_year_filter(q, Sample.date_registered, year,
-                            quarter if quarter in (1, 2, 3, 4) else None)
+    q = _apply_certified_quarter_filter(q, year, quarter)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -1118,12 +1166,7 @@ def toxicology_report():
     q = Sample.query.filter(
         Sample.sample_type == Branch.TOXICOLOGY,
     )
-    if month and 1 <= month <= 12:
-        q = _fiscal_year_filter(q, Sample.date_registered, year, None)
-        q = q.filter(db.extract('month', Sample.date_registered) == month)
-    else:
-        q = _fiscal_year_filter(q, Sample.date_registered, year,
-                                quarter if quarter else None)
+    q = _apply_certified_quarter_filter(q, year, quarter, month)
 
     if status_filter:
         try:
@@ -1135,13 +1178,21 @@ def toxicology_report():
     if date_reported_from:
         try:
             from datetime import date as _date
-            q = q.filter(Sample.certified_at >= _date.fromisoformat(date_reported_from))
+            from sqlalchemy import or_ as _or
+            q = q.filter(_or(
+                Sample.certified_at >= _date.fromisoformat(date_reported_from),
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
     if date_reported_to:
         try:
             from datetime import date as _date
-            q = q.filter(Sample.certified_at <= _date.fromisoformat(date_reported_to))
+            from sqlalchemy import or_ as _or
+            q = q.filter(_or(
+                Sample.certified_at <= _date.fromisoformat(date_reported_to),
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
 
@@ -1226,8 +1277,7 @@ def toxicology_report_download():
     q = Sample.query.filter(
         Sample.sample_type == Branch.TOXICOLOGY,
     )
-    q = _fiscal_year_filter(q, Sample.date_registered, year,
-                            quarter if quarter in (1, 2, 3, 4) else None)
+    q = _apply_certified_quarter_filter(q, year, quarter)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -1290,12 +1340,7 @@ def alcohol_report():
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_ALCOHOL,
     )
-    if month and 1 <= month <= 12:
-        q = _fiscal_year_filter(q, Sample.date_registered, year, None)
-        q = q.filter(db.extract('month', Sample.date_registered) == month)
-    else:
-        q = _fiscal_year_filter(q, Sample.date_registered, year,
-                                quarter if quarter else None)
+    q = _apply_certified_quarter_filter(q, year, quarter, month)
 
     if status_filter:
         try:
@@ -1307,13 +1352,21 @@ def alcohol_report():
     if date_reported_from:
         try:
             from datetime import date as _date
-            q = q.filter(Sample.certified_at >= _date.fromisoformat(date_reported_from))
+            from sqlalchemy import or_ as _or
+            q = q.filter(_or(
+                Sample.certified_at >= _date.fromisoformat(date_reported_from),
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
     if date_reported_to:
         try:
             from datetime import date as _date
-            q = q.filter(Sample.certified_at <= _date.fromisoformat(date_reported_to))
+            from sqlalchemy import or_ as _or
+            q = q.filter(_or(
+                Sample.certified_at <= _date.fromisoformat(date_reported_to),
+                Sample.status.notin_(_CERTIFIED_STATUSES),
+            ))
         except (ValueError, TypeError):
             pass
 
@@ -1419,8 +1472,7 @@ def alcohol_report_download():
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_ALCOHOL,
     )
-    q = _fiscal_year_filter(q, Sample.date_registered, year,
-                            quarter if quarter in (1, 2, 3, 4) else None)
+    q = _apply_certified_quarter_filter(q, year, quarter)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -3087,12 +3139,17 @@ def admin_dropdowns():
     if category_filter:
         q = q.filter_by(category=category_filter)
     items = q.order_by(DropdownConfig.category, DropdownConfig.sort_order, DropdownConfig.label).all()
+    # All items (unfiltered) used by the JS category preview in the add form
+    all_items = DropdownConfig.query.order_by(
+        DropdownConfig.category, DropdownConfig.sort_order, DropdownConfig.label
+    ).all()
     form = DropdownConfigForm()
     return render_template(
         'admin/dropdowns.html',
         items=items, form=form,
         category_filter=category_filter,
         category_choices=DROPDOWN_CATEGORY_CHOICES,
+        all_items=all_items,
     )
 
 

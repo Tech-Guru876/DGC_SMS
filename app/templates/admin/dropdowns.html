@@ -34,7 +34,7 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     {{ form.category.label(class="form-label fw-semibold") }}
-                    {{ form.category(class="form-select") }}
+                    {{ form.category(class="form-select", id="add-category-select") }}
                     {% for error in form.category.errors %}
                     <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
@@ -65,6 +65,12 @@
                 </div>
             </div>
         </form>
+
+        <!-- Existing entries for selected category (shown inline to help avoid duplicates) -->
+        <div id="category-preview" class="mt-3" style="display:none;">
+            <p class="small fw-semibold text-muted mb-1">Existing entries for selected category:</p>
+            <div id="category-preview-list" class="d-flex flex-wrap gap-1"></div>
+        </div>
     </div>
 </div>
 
@@ -128,4 +134,47 @@
         </table>
     </div>
 </div>
+
+<script>
+(function () {
+    // Build a map of category -> [{value, label, active}] from the existing table rows
+    var categoryMap = {};
+    {% for item in all_items %}
+    (function(){
+        var cat = {{ item.category | tojson }};
+        var val = {{ item.value | tojson }};
+        var lbl = {{ (item.label or item.value) | tojson }};
+        var active = {{ item.is_active | tojson }};
+        if (!categoryMap[cat]) categoryMap[cat] = [];
+        categoryMap[cat].push({value: val, label: lbl, active: active});
+    })();
+    {% endfor %}
+
+    var select = document.getElementById('add-category-select');
+    var preview = document.getElementById('category-preview');
+    var previewList = document.getElementById('category-preview-list');
+
+    function updatePreview() {
+        var cat = select.value;
+        previewList.innerHTML = '';
+        if (!cat || !categoryMap[cat] || categoryMap[cat].length === 0) {
+            preview.style.display = 'none';
+            return;
+        }
+        preview.style.display = '';
+        categoryMap[cat].forEach(function (item) {
+            var badge = document.createElement('span');
+            badge.className = 'badge ' + (item.active ? 'bg-info text-dark' : 'bg-secondary');
+            badge.title = 'Value: ' + item.value;
+            badge.textContent = item.label;
+            previewList.appendChild(badge);
+        });
+    }
+
+    if (select) {
+        select.addEventListener('change', updatePreview);
+        updatePreview();
+    }
+})();
+</script>
 {% endblock %}
