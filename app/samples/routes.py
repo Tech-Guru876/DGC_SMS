@@ -1346,7 +1346,7 @@ def submit_report(assignment_id):
             submitted_names.append(a.test_name)
 
         # Record history and update status for every unique sample affected
-        affected_samples: dict = {}
+        affected_samples: dict[int, dict] = {}
         for a in sibling_assignments:
             if a.sample_id not in affected_samples:
                 affected_samples[a.sample_id] = {'sample': a.sample, 'names': []}
