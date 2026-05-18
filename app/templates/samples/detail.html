@@ -21,6 +21,7 @@
     'Completed': 'success',
 } %}
 {% set status_value = sample.status.value %}
+{% set pharma_summary_note = 'A summary report is required for pharmaceutical samples.' %}
 
 <div class="page-header">
     <div>
@@ -64,7 +65,7 @@
         <i class="bi bi-check-circle me-1"></i>
         <strong>All reports accepted.</strong> Submit to Deputy Government Chemist for review.
         {% if sample.sample_type.value == 'Pharmaceutical' %}
-        <br><small class="text-muted">A summary report is required for pharmaceutical samples.</small>
+        <br><small class="text-muted">{{ pharma_summary_note }}</small>
         {% endif %}
     </div>
     <a href="{{ url_for('samples.submit_to_deputy', sample_id=sample.id) }}" class="btn btn-primary btn-sm text-nowrap">
@@ -77,7 +78,7 @@
         <i class="bi bi-check-circle me-1"></i>
         <strong>Corrected reports received.</strong> Submit to Deputy Government Chemist for review.
         {% if sample.sample_type.value == 'Pharmaceutical' %}
-        <br><small class="text-muted">A summary report is required for pharmaceutical samples.</small>
+        <br><small class="text-muted">{{ pharma_summary_note }}</small>
         {% endif %}
     </div>
     <a href="{{ url_for('samples.submit_to_deputy', sample_id=sample.id) }}" class="btn btn-primary btn-sm text-nowrap">

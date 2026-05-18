@@ -1626,17 +1626,19 @@ def submit_to_deputy(sample_id):
             if (a.status == AssignmentStatus.UNDER_TECHNICAL_REVIEW
                 and a.reviewed_by is not None)
         ]
-        # Fetch existing review counts in one query to avoid N+1
-        assignment_ids = [a.id for a in assignments_to_accept]
-        existing_counts = dict(
-            db.session.query(
-                ReviewHistory.assignment_id,
-                db.func.count(ReviewHistory.id),
-            ).filter(
-                ReviewHistory.assignment_id.in_(assignment_ids),
-                ReviewHistory.review_type == 'technical',
-            ).group_by(ReviewHistory.assignment_id).all()
-        ) if assignment_ids else {}
+        existing_counts = {}
+        if assignments_to_accept:
+            # Fetch existing review counts in one query to avoid N+1
+            assignment_ids = [a.id for a in assignments_to_accept]
+            existing_counts = dict(
+                db.session.query(
+                    ReviewHistory.assignment_id,
+                    db.func.count(ReviewHistory.id),
+                ).filter(
+                    ReviewHistory.assignment_id.in_(assignment_ids),
+                    ReviewHistory.review_type == 'technical',
+                ).group_by(ReviewHistory.assignment_id).all()
+            )
         for a in assignments_to_accept:
             a.status = AssignmentStatus.ACCEPTED
             a.date_completed = now
