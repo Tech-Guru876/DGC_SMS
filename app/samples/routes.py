@@ -1119,12 +1119,16 @@ def submit_report(assignment_id):
         flash('Report cannot be submitted in the current state.', 'warning')
         return redirect(url_for('samples.assignment_detail', assignment_id=assignment.id))
 
+    is_returned = assignment.status == AssignmentStatus.RETURNED
+
     # For returned reports, resubmit only the specific assignment that was
-    # returned. For fresh submissions, keep grouped chemist submission flow.
-    if assignment.status == AssignmentStatus.RETURNED:
+    # returned (no test selection UI). For fresh submissions, load all pending
+    # assignments so the analyst can select which tests to include.
+    if is_returned:
+        available_assignments = [assignment]
         sibling_assignments = [assignment]
     else:
-        sibling_assignments = SampleAssignment.query.filter(
+        available_assignments = SampleAssignment.query.filter(
             SampleAssignment.sample_id == assignment.sample_id,
             SampleAssignment.chemist_id == current_user.id,
             SampleAssignment.status.in_([
@@ -1133,6 +1137,7 @@ def submit_report(assignment_id):
                 AssignmentStatus.RETURNED,
             ]),
         ).all()
+        sibling_assignments = list(available_assignments)
 
     today = jamaica_now().date()
     min_test_date = assignment.sample.date_received
@@ -1147,29 +1152,110 @@ def submit_report(assignment_id):
         meets_spec = form.meets_specifications.data or None
         report_comments = form.report_comments.data or None
 
-        # Validate test_date bounds (single-test case)
-        if test_date:
+        # Resolve which assignments the analyst selected (non-returned only)
+        report_mode = request.form.get('report_mode', 'combined')
+        if not is_returned and len(available_assignments) > 1:
+            selected_ids_raw = request.form.getlist('assignment_ids')
+            if selected_ids_raw:
+                selected_ids = set()
+                for x in selected_ids_raw:
+                    try:
+                        selected_ids.add(int(x))
+                    except (ValueError, TypeError):
+                        pass
+                sibling_assignments = [a for a in available_assignments if a.id in selected_ids]
+            if not sibling_assignments:
+                flash('Please select at least one test to submit a report for.', 'danger')
+                return render_template(
+                    'samples/submit_report.html', form=form, assignment=assignment,
+                    available_assignments=available_assignments,
+                    sibling_assignments=sibling_assignments,
+                    report_mode=report_mode, is_returned=is_returned,
+                    today=today.isoformat(), min_test_date=min_test_date.isoformat(),
+                )
+        else:
+            report_mode = 'combined'
+
+        # Validate test_date bounds for combined mode (single date applies to all selected tests)
+        if test_date and report_mode == 'combined':
             if test_date > today:
                 flash('Test date cannot be in the future.', 'danger')
                 return render_template(
                     'samples/submit_report.html', form=form, assignment=assignment,
+                    available_assignments=available_assignments,
                     sibling_assignments=sibling_assignments,
+                    report_mode=report_mode, is_returned=is_returned,
                     today=today.isoformat(), min_test_date=min_test_date.isoformat(),
                 )
             if test_date < min_test_date:
                 flash('Test date cannot be before the date the sample was received.', 'danger')
                 return render_template(
                     'samples/submit_report.html', form=form, assignment=assignment,
+                    available_assignments=available_assignments,
                     sibling_assignments=sibling_assignments,
+                    report_mode=report_mode, is_returned=is_returned,
                     today=today.isoformat(), min_test_date=min_test_date.isoformat(),
                 )
 
-        stored = original = None
-        if form.report_file.data:
+        from app.models import DocumentVersion
+
+        if report_mode == 'individual':
+            # Validate that every selected assignment has its own file
+            missing_files = []
+            for a in sibling_assignments:
+                f = request.files.get(f'report_file_{a.id}')
+                if not f or not f.filename:
+                    missing_files.append(a.test_name)
+            if missing_files:
+                flash(
+                    'A report file is required for each selected test: '
+                    + ', '.join(missing_files),
+                    'danger',
+                )
+                return render_template(
+                    'samples/submit_report.html', form=form, assignment=assignment,
+                    available_assignments=available_assignments,
+                    sibling_assignments=sibling_assignments,
+                    report_mode=report_mode, is_returned=is_returned,
+                    today=today.isoformat(), min_test_date=min_test_date.isoformat(),
+                )
+
+            # Save per-test files
+            per_test_files = {}
+            for a in sibling_assignments:
+                stored, original = _save_file(request.files[f'report_file_{a.id}'])
+                existing_versions = DocumentVersion.query.filter_by(
+                    sample_id=a.sample_id, document_type='report',
+                    assignment_id=a.id,
+                ).count()
+                version_num = existing_versions + 1
+                upload_label = 'original' if version_num == 1 else 'resubmission'
+                db.session.add(DocumentVersion(
+                    sample_id=a.sample_id,
+                    document_type='report',
+                    version_number=version_num,
+                    file_path=stored,
+                    original_name=original,
+                    upload_label=upload_label,
+                    uploaded_by=current_user.id,
+                    assignment_id=a.id,
+                ))
+                per_test_files[a.id] = (stored, original)
+        else:
+            # Combined mode: one file shared by all selected assignments
+            if not form.report_file.data:
+                flash('A report file is required before submitting.', 'danger')
+                return render_template(
+                    'samples/submit_report.html', form=form, assignment=assignment,
+                    available_assignments=available_assignments,
+                    sibling_assignments=sibling_assignments,
+                    report_mode=report_mode, is_returned=is_returned,
+                    today=today.isoformat(), min_test_date=min_test_date.isoformat(),
+                )
+
+            stored = original = None
             stored, original = _save_file(form.report_file.data)
 
-            # Create document version for the report file
-            from app.models import DocumentVersion
             existing_versions = DocumentVersion.query.filter_by(
                 sample_id=assignment.sample_id, document_type='report',
                 assignment_id=assignment.id,
@@ -1187,10 +1273,10 @@ def submit_report(assignment_id):
                 assignment_id=assignment.id,
             ))
 
-        # Check if per-test fields were submitted (multiple sibling assignments)
+        # Check if per-test date/spec fields were submitted (multiple selected assignments)
         has_per_test = len(sibling_assignments) > 1
 
-        # Apply the report to all sibling assignments that are submittable
+        # Apply the report to all selected assignments
         date_error = None
         submitted_names = []
         for a in sibling_assignments:
@@ -1226,12 +1312,16 @@ def submit_report(assignment_id):
             flash(date_error, 'danger')
             return render_template(
                 'samples/submit_report.html', form=form, assignment=assignment,
+                available_assignments=available_assignments,
                 sibling_assignments=sibling_assignments,
+                report_mode=report_mode, is_returned=is_returned,
                 today=today.isoformat(), min_test_date=min_test_date.isoformat(),
             )
 
         for a in sibling_assignments:
-            if stored:
+            if report_mode == 'individual':
+                a.report_file, a.report_file_original_name = per_test_files[a.id]
+            elif stored:
                 a.report_file = stored
                 a.report_file_original_name = original
 
@@ -1282,7 +1372,9 @@ def submit_report(assignment_id):
 
     return render_template(
         'samples/submit_report.html', form=form, assignment=assignment,
+        available_assignments=available_assignments,
         sibling_assignments=sibling_assignments,
+        report_mode='combined', is_returned=is_returned,
         today=today.isoformat(), min_test_date=min_test_date.isoformat(),
     )
 

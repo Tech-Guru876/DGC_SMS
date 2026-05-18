@@ -52,6 +52,53 @@
                     {{ form.hidden_tag() }}
 
                     <div class="row g-3">
+
+                        {# ── Test Selection (only when multiple tests are available and not a resubmission) ── #}
+                        {% if not is_returned and available_assignments and available_assignments|length > 1 %}
+                        <div class="col-12">
+                            <label class="form-label fw-semibold"><i class="bi bi-check2-square me-1"></i>Select Tests to Include in This Report</label>
+                            <div class="border rounded p-3 bg-light">
+                                {% for a in available_assignments %}
+                                <div class="form-check">
+                                    <input class="form-check-input test-checkbox" type="checkbox"
+                                           name="assignment_ids" value="{{ a.id }}"
+                                           id="asgn_{{ a.id }}" checked>
+                                    <label class="form-check-label" for="asgn_{{ a.id }}">
+                                        <span class="badge bg-info text-dark me-1">{{ a.test_name }}</span>
+                                        {% if a.test_reference %}<small class="text-muted">— {{ a.test_reference }}</small>{% endif %}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="form-text">Select which tests this report covers. Unselected tests can be submitted separately later.</div>
+                        </div>
+
+                        {# ── Report Mode ── #}
+                        <div class="col-12">
+                            <label class="form-label fw-semibold"><i class="bi bi-files me-1"></i>Report Format</label>
+                            <div class="border rounded p-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="report_mode"
+                                           value="combined" id="mode_combined"
+                                           {% if report_mode != 'individual' %}checked{% endif %}>
+                                    <label class="form-check-label" for="mode_combined">
+                                        <strong>One report for all selected tests</strong>
+                                        <div class="form-text">Upload a single report document covering all selected tests.</div>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="report_mode"
+                                           value="individual" id="mode_individual"
+                                           {% if report_mode == 'individual' %}checked{% endif %}>
+                                    <label class="form-check-label" for="mode_individual">
+                                        <strong>Individual report per test</strong>
+                                        <div class="form-text">Upload a separate report document for each selected test.</div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
                         <div class="col-12">
                             {{ form.report_text.label(class="form-label fw-semibold") }}
                             {{ form.report_text(class="form-control", rows=8) }}
@@ -60,7 +107,9 @@
                             {% endfor %}
                         </div>
 
-                        <div class="col-12">
+                        {# ── Combined mode file upload (default) ── #}
+                        <div class="col-12" id="combined-file-section"
+                             {% if not is_returned and available_assignments and available_assignments|length > 1 and report_mode == 'individual' %}style="display:none;"{% endif %}>
                             {{ form.report_file.label(class="form-label fw-semibold") }}
                             <span class="text-danger ms-1">*</span>
                             {{ form.report_file(class="form-control") }}
@@ -75,6 +124,27 @@
                             </div>
                             {% endif %}
                         </div>
+
+                        {# ── Individual mode: per-test file uploads ── #}
+                        {% if not is_returned and available_assignments and available_assignments|length > 1 %}
+                        <div class="col-12" id="individual-file-section"
+                             {% if report_mode != 'individual' %}style="display:none;"{% endif %}>
+                            <label class="form-label fw-semibold"><i class="bi bi-file-earmark-arrow-up me-1"></i>Report Files (one per test)</label>
+                            <span class="text-danger ms-1">*</span>
+                            <div id="individual-file-list">
+                                {% for a in available_assignments %}
+                                <div class="border rounded p-3 mb-2 individual-file-row" data-id="{{ a.id }}">
+                                    <div class="fw-semibold mb-2">
+                                        <span class="badge bg-info text-dark me-1">{{ a.test_name }}</span>
+                                    </div>
+                                    <input type="file" class="form-control" name="report_file_{{ a.id }}"
+                                           accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp,.doc,.docx">
+                                    <div class="form-text">PDF, Word DOC/DOCX, or image file</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
 
                         {% if sibling_assignments and sibling_assignments|length > 1 %}
                         {# Per-test date and specifications when multiple tests #}
@@ -155,4 +225,48 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+    'use strict';
+
+    var modeRadios = document.querySelectorAll('input[name="report_mode"]');
+    var combinedSection = document.getElementById('combined-file-section');
+    var individualSection = document.getElementById('individual-file-section');
+    var testCheckboxes = document.querySelectorAll('.test-checkbox');
+    var individualRows = document.querySelectorAll('.individual-file-row');
+
+    function applyMode() {
+        var mode = document.querySelector('input[name="report_mode"]:checked');
+        if (!mode) return;
+        if (combinedSection) combinedSection.style.display = mode.value === 'individual' ? 'none' : '';
+        if (individualSection) individualSection.style.display = mode.value === 'individual' ? '' : 'none';
+    }
+
+    modeRadios.forEach(function (r) { r.addEventListener('change', applyMode); });
+
+    // Keep individual file rows in sync with selected checkboxes
+    function syncIndividualRows() {
+        testCheckboxes.forEach(function (cb) {
+            var row = document.querySelector('.individual-file-row[data-id="' + cb.value + '"]');
+            if (row) {
+                row.style.display = cb.checked ? '' : 'none';
+                // Clear file input when hidden so it doesn't accidentally submit
+                if (!cb.checked) {
+                    var input = row.querySelector('input[type="file"]');
+                    if (input) input.value = '';
+                }
+            }
+        });
+    }
+
+    testCheckboxes.forEach(function (cb) { cb.addEventListener('change', syncIndividualRows); });
+
+    applyMode();
+    syncIndividualRows();
+})();
+</script>
 {% endblock %}
