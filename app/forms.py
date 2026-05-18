@@ -807,7 +807,7 @@ class ReportSubmitForm(FlaskForm):
     report_file = FileField(
         'Attach Report File',
         validators=[
-            DataRequired(message='A report file is required before submitting.'),
+            Optional(),
             FileAllowed(
                 ['pdf', 'png', 'jpg', 'jpeg', 'tiff', 'bmp', 'doc', 'docx'],
                 'Only PDF, image, and Word document files allowed.'
