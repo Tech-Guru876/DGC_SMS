@@ -105,6 +105,21 @@ def _add_history(sample, action, details=None, action_type=None,
     db.session.add(entry)
 
 
+def _assignments_ready_for_deputy(sample):
+    assignments = sample.assignments.all()
+    return bool(assignments) and all(
+        a.status in (AssignmentStatus.ACCEPTED, AssignmentStatus.COMPLETED)
+        for a in assignments
+    )
+
+
+def _can_submit_to_deputy(sample):
+    return (
+        sample.status in (SampleStatus.ACCEPTED, SampleStatus.DEPUTY_RETURNED)
+        or _assignments_ready_for_deputy(sample)
+    )
+
+
 # ---------------------------------------------------------------------------
 # List / Dashboard views
 # ---------------------------------------------------------------------------
@@ -514,15 +529,11 @@ def register():
 def detail(sample_id):
     sample = db.get_or_404(Sample, sample_id)
     assignments = sample.assignments.all()
-    assignments_ready_for_deputy = bool(assignments) and all(
-        a.status in (AssignmentStatus.ACCEPTED, AssignmentStatus.COMPLETED)
-        for a in assignments
-    )
     can_submit_to_deputy = (
         sample.status == SampleStatus.ACCEPTED
         or (
             sample.status != SampleStatus.DEPUTY_RETURNED
-            and assignments_ready_for_deputy
+            and _assignments_ready_for_deputy(sample)
         )
     )
     review_page = request.args.get('review_page', 1, type=int)
@@ -1625,16 +1636,7 @@ def submit_to_deputy(sample_id):
         flash('Only Senior Chemists can submit to Deputy.', 'danger')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
-    assignments = sample.assignments.all()
-    assignments_ready_for_deputy = bool(assignments) and all(
-        a.status in (AssignmentStatus.ACCEPTED, AssignmentStatus.COMPLETED)
-        for a in assignments
-    )
-    can_submit = (
-        sample.status in (SampleStatus.ACCEPTED, SampleStatus.DEPUTY_RETURNED)
-        or assignments_ready_for_deputy
-    )
-    if not can_submit:
+    if not _can_submit_to_deputy(sample):
         flash('Sample must have all reports accepted before submitting to Deputy.', 'warning')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
@@ -1665,8 +1667,6 @@ def submit_to_deputy(sample_id):
             sample.summary_report_file = stored
             sample.summary_report_file_original_name = original
 
-        if not is_resubmission and sample.status != SampleStatus.ACCEPTED:
-            sample.status = SampleStatus.ACCEPTED
         sample.status = SampleStatus.DEPUTY_REVIEW
 
         if is_resubmission:
