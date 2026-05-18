@@ -187,9 +187,10 @@ def _dynamic_choices(category, fallback_choices, placeholder=('', '-- Select --'
     form remains functional out-of-the-box.  A *placeholder* tuple is always
     prepended to the final list.
     """
+    from sqlalchemy.exc import SQLAlchemyError
     try:
         db_choices = DropdownConfig.choices_for(category)
-    except Exception:
+    except SQLAlchemyError:
         db_choices = []
 
     if db_choices:

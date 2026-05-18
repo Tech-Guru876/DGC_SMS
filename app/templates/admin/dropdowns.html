@@ -9,10 +9,10 @@
 <!-- Filter by category -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="GET" class="row g-2 align-items-end">
+        <form method="GET" class="row g-2 align-items-end" id="filterForm">
             <div class="col-sm-6 col-md-3">
                 <label class="form-label small fw-semibold mb-1">Filter by Category</label>
-                <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+                <select name="category" id="category_filter_select" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">All Categories</option>
                     {% for val, lbl in category_choices if val %}
                     <option value="{{ val }}" {% if category_filter == val %}selected{% endif %}>{{ lbl }}</option>
@@ -135,22 +135,41 @@
 
 <script>
 (function () {
-    const categoryFilter = document.querySelector('select[name="category"]');
+    const categoryFilterSelect = document.getElementById('category_filter_select');
     const addCategorySelect = document.getElementById('add_category_select');
     const addValueInput = document.getElementById('add_value_input');
     const duplicateWarning = document.getElementById('duplicate_warning');
+    const tableRows = document.querySelectorAll('tbody tr[data-category]');
 
-    // When the add-form category changes, sync the page filter so the table
-    // scrolls to show existing entries for that category.
-    if (addCategorySelect && categoryFilter) {
-        addCategorySelect.addEventListener('change', function () {
-            categoryFilter.value = this.value;
-            categoryFilter.form.submit();
+    // When the add-form category changes, filter table rows client-side so the
+    // user can see existing entries without losing their form input.
+    function filterTableByCategory(cat) {
+        tableRows.forEach(function (row) {
+            if (!cat || row.dataset.category === cat) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
         });
+        // Also sync the server-side filter select to reflect the active view.
+        if (categoryFilterSelect) {
+            categoryFilterSelect.value = cat || '';
+        }
+    }
+
+    if (addCategorySelect) {
+        addCategorySelect.addEventListener('change', function () {
+            filterTableByCategory(this.value);
+            checkDuplicate();
+        });
+        // Apply filter on page load if a category is already pre-selected.
+        if (addCategorySelect.value) {
+            filterTableByCategory(addCategorySelect.value);
+        }
     }
 
     // Client-side duplicate check: warn if the entered value already exists
-    // for the selected category (based on table rows currently visible).
+    // for the selected category (based on table rows currently in the DOM).
     function checkDuplicate() {
         if (!addCategorySelect || !addValueInput || !duplicateWarning) return;
         const cat = addCategorySelect.value.trim().toLowerCase();
@@ -159,9 +178,8 @@
             duplicateWarning.style.display = 'none';
             return;
         }
-        const rows = document.querySelectorAll('tbody tr[data-category]');
         let found = false;
-        rows.forEach(function (row) {
+        tableRows.forEach(function (row) {
             if (
                 row.dataset.category.toLowerCase() === cat &&
                 row.dataset.value.toLowerCase() === val
