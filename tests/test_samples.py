@@ -2267,3 +2267,78 @@ def test_submit_report_cross_sample_page_shows_other_samples(app, client):
     # Both lab numbers should appear (grouped by sample)
     assert b'TOX-Y01' in resp.data
     assert b'TOX-Y02' in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Regression: _update_sample_status must not override post-deputy statuses
+# ---------------------------------------------------------------------------
+
+def test_update_sample_status_does_not_override_deputy_review(app, client):
+    """_update_sample_status called after deputy submission must not reset
+    the sample status back to ACCEPTED (or any earlier status).
+
+    Scenario: sample is submitted to deputy (DEPUTY_REVIEW), then a senior
+    chemist returns an assignment to the analyst via return-to-analyst — an
+    operation that calls _update_sample_status internally.  The sample status
+    must stay at DEPUTY_REVIEW, not regress.
+    """
+    officer_id, sc_id, chemist_id, deputy_id, hod_id = _setup_users(app)
+
+    _login(client, 'officer')
+    _register_sample(client)
+    client.get('/auth/logout')
+
+    _login(client, 'senior')
+    with app.app_context():
+        sample = Sample.query.first()
+    client.post(f'/samples/{sample.id}/assign', data={
+        'chemist_ids': [chemist_id],
+        'test_name': 'Regression Test',
+    })
+    client.get('/auth/logout')
+
+    _login(client, 'chemist')
+    with app.app_context():
+        assignment = SampleAssignment.query.first()
+    client.post(f'/samples/assignment/{assignment.id}/report', data={
+        'report_text': 'All clear.',
+        'report_file': _report_file(),
+    }, content_type='multipart/form-data')
+    client.get('/auth/logout')
+
+    _login(client, 'officer')
+    with app.app_context():
+        assignment = SampleAssignment.query.first()
+    client.post(f'/samples/assignment/{assignment.id}/preliminary-review', data={
+        'action': 'approved', 'review_comments': 'OK',
+    })
+    client.get('/auth/logout')
+
+    _login(client, 'senior')
+    with app.app_context():
+        assignment = SampleAssignment.query.first()
+    client.post(f'/samples/assignment/{assignment.id}/review', data={
+        'action': 'accepted', 'review_comments': 'Good.',
+    })
+
+    with app.app_context():
+        sample = Sample.query.first()
+    # Submit to deputy
+    client.post(f'/samples/{sample.id}/submit-to-deputy', data={})
+
+    with app.app_context():
+        sample = Sample.query.first()
+        assert sample.status == SampleStatus.DEPUTY_REVIEW
+
+    # Now call return-to-analyst which triggers _update_sample_status internally
+    with app.app_context():
+        assignment = SampleAssignment.query.first()
+    client.post(f'/samples/assignment/{assignment.id}/return-to-analyst')
+
+    # The sample status must NOT have been reset by _update_sample_status
+    with app.app_context():
+        sample = Sample.query.first()
+        assert sample.status == SampleStatus.DEPUTY_REVIEW, (
+            f'Expected DEPUTY_REVIEW but got {sample.status.value!r}; '
+            '_update_sample_status incorrectly overrode the post-deputy status'
+        )
