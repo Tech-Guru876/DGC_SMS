@@ -14,7 +14,7 @@ from wtforms.validators import (
     Regexp, NumberRange,
 )
 
-from app.models import Role, Branch, Permission, User
+from app.models import Role, Branch, Permission, User, DropdownConfig
 
 
 def _strong_password(form, field):
@@ -177,6 +177,32 @@ TOXICOLOGY_SAMPLE_TYPE_CHOICES = [
     ('Gastric Content', 'Gastric Content'),
     ('Vitreous Humor', 'Vitreous Humor'),
 ]
+
+
+def _dynamic_choices(category, fallback_choices, placeholder=('', '-- Select --')):
+    """Return WTForms choices from DropdownConfig, falling back to static list.
+
+    Fetches active entries for *category* from the database.  If none are
+    configured yet the static *fallback_choices* list is used so that the
+    form remains functional out-of-the-box.  A *placeholder* tuple is always
+    prepended to the final list.
+    """
+    try:
+        db_choices = DropdownConfig.choices_for(category)
+    except Exception:
+        db_choices = []
+
+    if db_choices:
+        choices = db_choices
+    else:
+        # Strip any blank placeholder already present in the static fallback.
+        choices = [(v, lbl) for v, lbl in fallback_choices if v]
+
+    if placeholder is not None:
+        choices = [placeholder] + choices
+
+    return choices
+
 
 # Predefined test names per sample type (Branch)
 TOXICOLOGY_TEST_NAMES = [
@@ -508,6 +534,14 @@ class ToxicologySampleRegisterForm(SampleRegisterForm):
         validators=[Optional(), Length(max=100)]
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.toxicology_sample_type_name.choices = _dynamic_choices(
+            'toxicology_sample_type',
+            TOXICOLOGY_SAMPLE_TYPE_CHOICES,
+            ('', '-- Select Sample Type --'),
+        )
+
 
 class PharmaceuticalSampleRegisterForm(SampleRegisterForm):
     """Registration form for Pharmaceutical samples.
@@ -552,6 +586,19 @@ class PharmaceuticalSampleRegisterForm(SampleRegisterForm):
             existing = Sample.query.filter_by(lab_number=field.data).first()
             if existing:
                 raise ValidationError('Lab number already exists.')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.formulation_type.choices = _dynamic_choices(
+            'formulation_type',
+            FORMULATION_TYPE_CHOICES,
+            ('', '-- Select Formulation --'),
+        )
+        self.active_ingredient.choices = _dynamic_choices(
+            'api',
+            API_CHOICES,
+            ('', '-- Select API --'),
+        )
 
 
 class FoodMilkSampleRegisterForm(SampleRegisterForm):
@@ -731,6 +778,24 @@ class SampleEditForm(FlaskForm):
         )],
     )
     submit = SubmitField('Update Sample')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.formulation_type.choices = _dynamic_choices(
+            'formulation_type',
+            FORMULATION_TYPE_CHOICES,
+            ('', '-- Select Formulation --'),
+        )
+        self.active_ingredient.choices = _dynamic_choices(
+            'api',
+            API_CHOICES,
+            ('', '-- Select API --'),
+        )
+        self.toxicology_sample_type_name.choices = _dynamic_choices(
+            'toxicology_sample_type',
+            TOXICOLOGY_SAMPLE_TYPE_CHOICES,
+            ('', '-- Select Sample Type --'),
+        )
 
 
 class CheckboxSelectMultiple(widgets.ListWidget):

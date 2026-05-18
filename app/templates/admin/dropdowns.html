@@ -29,22 +29,25 @@
         <strong><i class="bi bi-plus-circle me-1"></i>Add New Dropdown Entry</strong>
     </div>
     <div class="card-body">
-        <form method="POST" action="{{ url_for('main.admin_dropdown_add') }}">
+        <form method="POST" action="{{ url_for('main.admin_dropdown_add') }}" id="addForm">
             {{ form.hidden_tag() }}
             <div class="row g-3">
                 <div class="col-md-3">
                     {{ form.category.label(class="form-label fw-semibold") }}
-                    {{ form.category(class="form-select") }}
+                    {{ form.category(class="form-select", id="add_category_select") }}
                     {% for error in form.category.errors %}
                     <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                 </div>
                 <div class="col-md-3">
                     {{ form.value.label(class="form-label fw-semibold") }}
-                    {{ form.value(class="form-control", placeholder="Stored value") }}
+                    {{ form.value(class="form-control", placeholder="Stored value", id="add_value_input") }}
                     {% for error in form.value.errors %}
                     <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
+                    <div id="duplicate_warning" class="text-warning small mt-1" style="display:none;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>This value already exists in the selected category.
+                    </div>
                 </div>
                 <div class="col-md-3">
                     {{ form.label.label(class="form-label fw-semibold") }}
@@ -88,7 +91,8 @@
             </thead>
             <tbody>
                 {% for item in items %}
-                <tr class="{% if not item.is_active %}table-secondary text-muted{% endif %}">
+                <tr class="{% if not item.is_active %}table-secondary text-muted{% endif %}"
+                    data-category="{{ item.category }}" data-value="{{ item.value }}">
                     <td>{{ item.id }}</td>
                     <td><span class="badge bg-primary">{{ item.category }}</span></td>
                     <td><code>{{ item.value }}</code></td>
@@ -128,4 +132,52 @@
         </table>
     </div>
 </div>
+
+<script>
+(function () {
+    const categoryFilter = document.querySelector('select[name="category"]');
+    const addCategorySelect = document.getElementById('add_category_select');
+    const addValueInput = document.getElementById('add_value_input');
+    const duplicateWarning = document.getElementById('duplicate_warning');
+
+    // When the add-form category changes, sync the page filter so the table
+    // scrolls to show existing entries for that category.
+    if (addCategorySelect && categoryFilter) {
+        addCategorySelect.addEventListener('change', function () {
+            categoryFilter.value = this.value;
+            categoryFilter.form.submit();
+        });
+    }
+
+    // Client-side duplicate check: warn if the entered value already exists
+    // for the selected category (based on table rows currently visible).
+    function checkDuplicate() {
+        if (!addCategorySelect || !addValueInput || !duplicateWarning) return;
+        const cat = addCategorySelect.value.trim().toLowerCase();
+        const val = addValueInput.value.trim().toLowerCase();
+        if (!cat || !val) {
+            duplicateWarning.style.display = 'none';
+            return;
+        }
+        const rows = document.querySelectorAll('tbody tr[data-category]');
+        let found = false;
+        rows.forEach(function (row) {
+            if (
+                row.dataset.category.toLowerCase() === cat &&
+                row.dataset.value.toLowerCase() === val
+            ) {
+                found = true;
+            }
+        });
+        duplicateWarning.style.display = found ? '' : 'none';
+    }
+
+    if (addValueInput) {
+        addValueInput.addEventListener('input', checkDuplicate);
+    }
+    if (addCategorySelect) {
+        addCategorySelect.addEventListener('change', checkDuplicate);
+    }
+})();
+</script>
 {% endblock %}
