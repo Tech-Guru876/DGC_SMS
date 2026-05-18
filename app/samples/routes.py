@@ -2401,7 +2401,26 @@ def request_assignment_delete(assignment_id):
 
 
 def _update_sample_status(sample):
-    """Derive the overall sample status from assignment statuses."""
+    """Derive the overall sample status from assignment statuses.
+
+    This function only manages statuses up to and including ACCEPTED.
+    Statuses that are set by the Deputy/HOD workflow are never overridden
+    here; those transitions are handled exclusively by their own routes.
+    """
+    # Statuses set by the Deputy/HOD workflow must not be overridden by
+    # assignment-driven logic.  Once a sample reaches any of these states
+    # only the relevant Deputy/HOD route may change the status.
+    _protected_statuses = {
+        SampleStatus.DEPUTY_REVIEW,
+        SampleStatus.DEPUTY_RETURNED,
+        SampleStatus.CERTIFICATE_PREPARATION,
+        SampleStatus.HOD_REVIEW,
+        SampleStatus.HOD_RETURNED,
+        SampleStatus.CERTIFIED,
+    }
+    if sample.status in _protected_statuses:
+        return
+
     assignments = sample.assignments.all()
     if not assignments:
         return
