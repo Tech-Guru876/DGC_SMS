@@ -116,6 +116,19 @@ def _assignments_ready_for_deputy(sample):
 
 def _can_submit_to_deputy(sample):
     """Return True when a sample is valid for Deputy submission/resubmission."""
+    # Statuses that are already at or beyond the Deputy review stage should
+    # never trigger a (re-)submission to Deputy.
+    post_deputy_statuses = {
+        SampleStatus.DEPUTY_REVIEW,
+        SampleStatus.CERTIFICATE_PREPARATION,
+        SampleStatus.HOD_REVIEW,
+        SampleStatus.HOD_RETURNED,
+        SampleStatus.CERTIFIED,
+        SampleStatus.REJECTED,
+        SampleStatus.COMPLETED,
+    }
+    if sample.status in post_deputy_statuses:
+        return False
     return (
         sample.status in (SampleStatus.ACCEPTED, SampleStatus.DEPUTY_RETURNED)
         or _assignments_ready_for_deputy(sample)
