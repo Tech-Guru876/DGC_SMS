@@ -1621,26 +1621,36 @@ def submit_to_deputy(sample_id):
     if (sample.status == SampleStatus.UNDER_TECHNICAL_REVIEW
             and sample.all_reports_ready_for_deputy()):
         now = jamaica_now()
-        for a in sample.assignments.all():
+        assignments_to_accept = [
+            a for a in sample.assignments.all()
             if (a.status == AssignmentStatus.UNDER_TECHNICAL_REVIEW
-                    and a.reviewed_by is not None):
-                a.status = AssignmentStatus.ACCEPTED
-                a.date_completed = now
-                prev_count = ReviewHistory.query.filter_by(
-                    sample_id=sample.id,
-                    assignment_id=a.id,
-                    review_type='technical',
-                ).count()
-                db.session.add(ReviewHistory(
-                    sample_id=sample.id,
-                    assignment_id=a.id,
-                    review_type='technical',
-                    review_number=prev_count + 1,
-                    action='accepted',
-                    reviewer_id=current_user.id,
-                    reviewed_at=now,
-                    comments='Accepted on submission to Deputy Government Chemist.',
-                ))
+                and a.reviewed_by is not None)
+        ]
+        # Fetch existing review counts in one query to avoid N+1
+        assignment_ids = [a.id for a in assignments_to_accept]
+        existing_counts = dict(
+            db.session.query(
+                ReviewHistory.assignment_id,
+                db.func.count(ReviewHistory.id),
+            ).filter(
+                ReviewHistory.assignment_id.in_(assignment_ids),
+                ReviewHistory.review_type == 'technical',
+            ).group_by(ReviewHistory.assignment_id).all()
+        ) if assignment_ids else {}
+        for a in assignments_to_accept:
+            a.status = AssignmentStatus.ACCEPTED
+            a.date_completed = now
+            prev_count = existing_counts.get(a.id, 0)
+            db.session.add(ReviewHistory(
+                sample_id=sample.id,
+                assignment_id=a.id,
+                review_type='technical',
+                review_number=prev_count + 1,
+                action='accepted',
+                reviewer_id=current_user.id,
+                reviewed_at=now,
+                comments='Accepted on submission to Deputy Government Chemist.',
+            ))
         _update_sample_status(sample)
         db.session.flush()
 

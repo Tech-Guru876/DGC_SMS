@@ -2146,7 +2146,7 @@ def test_submit_to_deputy_after_technical_return_and_resubmit(app, client):
 
     # Chemist resubmits corrected report
     _login(client, 'chemist')
-    resp = client.post(f'/samples/assignment/{assignment.id}/report', data={
+    client.post(f'/samples/assignment/{assignment.id}/report', data={
         'report_text': 'Corrected report.',
         'report_file': _report_file(),
     }, content_type='multipart/form-data', follow_redirects=True)
