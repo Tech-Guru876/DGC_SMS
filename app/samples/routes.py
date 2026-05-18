@@ -514,6 +514,17 @@ def register():
 def detail(sample_id):
     sample = db.get_or_404(Sample, sample_id)
     assignments = sample.assignments.all()
+    assignments_ready_for_deputy = bool(assignments) and all(
+        a.status in (AssignmentStatus.ACCEPTED, AssignmentStatus.COMPLETED)
+        for a in assignments
+    )
+    can_submit_to_deputy = (
+        sample.status == SampleStatus.ACCEPTED
+        or (
+            sample.status != SampleStatus.DEPUTY_RETURNED
+            and assignments_ready_for_deputy
+        )
+    )
     review_page = request.args.get('review_page', 1, type=int)
     activity_page = request.args.get('activity_page', 1, type=int)
     history_pagination = sample.history.paginate(
@@ -547,6 +558,7 @@ def detail(sample_id):
         review_histories=review_pagination.items,
         review_pagination=review_pagination,
         pending_backdate=pending_backdate,
+        can_submit_to_deputy=can_submit_to_deputy,
     )
 
 
@@ -1613,7 +1625,16 @@ def submit_to_deputy(sample_id):
         flash('Only Senior Chemists can submit to Deputy.', 'danger')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
-    if sample.status not in (SampleStatus.ACCEPTED, SampleStatus.DEPUTY_RETURNED):
+    assignments = sample.assignments.all()
+    assignments_ready_for_deputy = bool(assignments) and all(
+        a.status in (AssignmentStatus.ACCEPTED, AssignmentStatus.COMPLETED)
+        for a in assignments
+    )
+    can_submit = (
+        sample.status in (SampleStatus.ACCEPTED, SampleStatus.DEPUTY_RETURNED)
+        or assignments_ready_for_deputy
+    )
+    if not can_submit:
         flash('Sample must have all reports accepted before submitting to Deputy.', 'warning')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
@@ -1644,6 +1665,8 @@ def submit_to_deputy(sample_id):
             sample.summary_report_file = stored
             sample.summary_report_file_original_name = original
 
+        if not is_resubmission and sample.status != SampleStatus.ACCEPTED:
+            sample.status = SampleStatus.ACCEPTED
         sample.status = SampleStatus.DEPUTY_REVIEW
 
         if is_resubmission:
