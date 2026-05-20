@@ -1043,8 +1043,15 @@
     }
 
     function updateSelectionCount() {
-        var checked = groupList.querySelectorAll('input[type="checkbox"]:checked').length;
-        var total = groupList.querySelectorAll('input[type="checkbox"]').length;
+        var checked = 0;
+        var total = 0;
+        groupList.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+            var item = cb.closest('.test-modal-item');
+            if (!item || item.style.display !== 'none') {
+                total++;
+                if (cb.checked) { checked++; }
+            }
+        });
         selectionCount.textContent = checked + ' of ' + total + ' selected';
         confirmBtn.disabled = (checked === 0);
         setVisible(validationError, false);
@@ -1202,8 +1209,11 @@
 
     if (selectAllBtn) {
         selectAllBtn.addEventListener('click', function () {
-            groupList.querySelectorAll('.test-modal-item:not([style*="display: none"]) .modal-test-checkbox').forEach(function (cb) {
-                cb.checked = true;
+            groupList.querySelectorAll('.test-modal-item').forEach(function (item) {
+                if (item.style.display !== 'none') {
+                    var cb = item.querySelector('.modal-test-checkbox');
+                    if (cb) { cb.checked = true; }
+                }
             });
             updateSelectionCount();
         });
