@@ -949,7 +949,7 @@ def return_to_analyst(assignment_id):
     assignment.status = AssignmentStatus.RETURNED
     assignment.return_stage = 'technical'
     assignment.date_completed = None
-    assignment.review_comments = return_comment
+    assignment.return_to_analyst_comments = return_comment
 
     chemist_name = assignment.chemist.full_name if assignment.chemist else 'Unknown'
     comment_suffix = f' Comments: {return_comment}' if return_comment else ''
