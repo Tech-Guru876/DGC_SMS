@@ -1284,7 +1284,7 @@
             returnTestNameEl.textContent   = this.dataset.testName   || '';
             returnAnalystNameEl.textContent = this.dataset.analystName || 'Analyst';
             returnForm.action = this.dataset.actionUrl;
-            if (returnCommentEl) { returnCommentEl.value = ''; }
+            returnCommentEl.value = '';
             bootstrap.Modal.getOrCreateInstance(returnModal).show();
         });
     });

@@ -952,18 +952,18 @@ def return_to_analyst(assignment_id):
     assignment.return_to_analyst_comments = return_comment
 
     chemist_name = assignment.chemist.full_name if assignment.chemist else 'Unknown'
-    comment_suffix = f' Comments: {return_comment}' if return_comment else ''
+    history_comment = f' Comments: {return_comment}' if return_comment else ''
     _add_history(
         sample,
         'Returned to Analyst',
         (f'{current_user.full_name} returned assignment for test '
          f'"{assignment.test_name}" to analyst {chemist_name} '
-         f'(was: {old_status}).{comment_suffix}'),
+         f'(was: {old_status}).{history_comment}'),
         action_type='Return to Analyst',
         object_affected='Sample Assignment',
         change_description=(
             f'Test "{assignment.test_name}" returned to {chemist_name} '
-            f'by {current_user.full_name} (from {old_status}){comment_suffix}'),
+            f'by {current_user.full_name} (from {old_status}){history_comment}'),
     )
 
     _update_sample_status(sample)
