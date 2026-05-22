@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from app import db
-from app.models import User, Role, Permission, CustomRole
+from app.models import User, Role, Permission, CustomRole, Setting
 from tests.conftest import _create_user, _login
 
 
@@ -209,3 +209,58 @@ def test_admin_cannot_delete_assigned_custom_role(app, client):
     assert b'cannot delete custom role' in resp.data.lower()
     with app.app_context():
         assert db.session.get(CustomRole, role_id) is not None
+
+
+def test_admin_can_hide_builtin_role(app, client):
+    with app.app_context():
+        _create_user(role=Role.ADMIN, username='admin')
+    _login(client, username='admin')
+
+    resp = client.post('/auth/roles-permissions', data={
+        'action': 'update_builtin_role_state',
+        'role_name': 'CHEMIST',
+        'hidden': 'on',
+    }, follow_redirects=True)
+
+    assert resp.status_code == 200
+    with app.app_context():
+        assert Setting.get_bool('role_hidden_CHEMIST', default=False) is True
+
+
+def test_hidden_builtin_role_not_shown_on_create_user_form(app, client):
+    with app.app_context():
+        _create_user(role=Role.ADMIN, username='admin')
+        Setting.set('role_hidden_CHEMIST', 'true')
+        db.session.commit()
+    _login(client, username='admin')
+
+    resp = client.get('/auth/users/create')
+    assert resp.status_code == 200
+    assert b'value="CHEMIST"' not in resp.data
+
+
+def test_bulk_migrate_builtin_role_to_custom_role(app, client):
+    with app.app_context():
+        _create_user(role=Role.ADMIN, username='admin')
+        user = _create_user(role=Role.OFFICER, username='officer1')
+        custom = CustomRole(name='Operations Coordinator')
+        db.session.add(custom)
+        db.session.flush()
+        custom.permissions = {Permission.EDIT_SAMPLE}
+        db.session.commit()
+        uid = user.id
+        cid = custom.id
+    _login(client, username='admin')
+
+    resp = client.post('/auth/roles-permissions', data={
+        'action': 'bulk_migrate_builtin_role',
+        'source_role': 'OFFICER',
+        'target_custom_role_id': cid,
+    }, follow_redirects=True)
+
+    assert resp.status_code == 200
+    with app.app_context():
+        migrated_user = db.session.get(User, uid)
+        custom_role = db.session.get(CustomRole, cid)
+        assert Role.OFFICER not in migrated_user.roles
+        assert custom_role in migrated_user.custom_roles_rel

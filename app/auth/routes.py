@@ -8,7 +8,7 @@ from sqlalchemy.exc import OperationalError
 from app import db
 from app.auth import auth_bp
 from app.forms import LoginForm, UserCreateForm, UserEditForm, ForgotPasswordForm, ResetPasswordForm, ChangePasswordForm
-from app.models import User, Role, Branch, Permission, Notification, SampleHistory, SampleAssignment, Sample, CustomRole, jamaica_now
+from app.models import User, Role, Branch, Permission, Notification, SampleHistory, SampleAssignment, Sample, CustomRole, Setting, jamaica_now
 from app.notifications import send_email
 
 
@@ -26,9 +26,33 @@ def _commit_with_retry(max_attempts=3, base_delay=0.2):
             raise
 
 
-def _set_role_choices(form, include_custom=False):
+def _role_hidden_key(role):
+    return f'role_hidden_{role.name}'
+
+
+def _role_inactive_key(role):
+    return f'role_inactive_{role.name}'
+
+
+def _get_builtin_role_state(role):
+    return {
+        'hidden': Setting.get_bool(_role_hidden_key(role), default=False),
+        'inactive': Setting.get_bool(_role_inactive_key(role), default=False),
+    }
+
+
+def _is_builtin_role_assignable(role):
+    state = _get_builtin_role_state(role)
+    return not state['hidden'] and not state['inactive']
+
+
+def _set_role_choices(form, include_custom=False, include_system_roles=None):
     """Populate role choices with system roles plus admin-defined custom roles."""
-    choices = [(r.name, r.value) for r in Role]
+    include_system_roles = include_system_roles or set()
+    choices = []
+    for r in Role:
+        if r.name in include_system_roles or _is_builtin_role_assignable(r):
+            choices.append((r.name, r.value))
     if include_custom:
         custom_roles = CustomRole.query.order_by(CustomRole.name.asc()).all()
         choices.extend((f'custom:{r.id}', f'{r.name} (Custom)') for r in custom_roles)
@@ -249,7 +273,11 @@ def user_edit(user_id):
         return redirect(url_for('main.dashboard'))
     user = db.get_or_404(User, user_id)
     form = UserEditForm(obj=user)
-    _set_role_choices(form, include_custom=current_user.has_role(Role.ADMIN))
+    _set_role_choices(
+        form,
+        include_custom=current_user.has_role(Role.ADMIN),
+        include_system_roles={r.name for r in user.roles},
+    )
     if request.method == 'GET':
         form.roles.data = [r.name for r in user.roles]
         if current_user.has_role(Role.ADMIN):
@@ -481,6 +509,68 @@ def roles_permissions():
 
     if request.method == 'POST':
         action = request.form.get('action', '').strip()
+        if action == 'update_builtin_role_state':
+            role_name = (request.form.get('role_name') or '').strip()
+            role = Role[role_name] if role_name in Role.__members__ else None
+            if role is None:
+                flash('Built-in role not found.', 'danger')
+                return redirect(url_for('auth.roles_permissions'))
+            if role == Role.ADMIN:
+                flash('Admin role cannot be hidden or inactivated.', 'warning')
+                return redirect(url_for('auth.roles_permissions'))
+
+            hidden = request.form.get('hidden') == 'on'
+            inactive = request.form.get('inactive') == 'on'
+            Setting.set(_role_hidden_key(role), str(hidden).lower())
+            Setting.set(_role_inactive_key(role), str(inactive).lower())
+            _commit_with_retry()
+            flash(f'Updated built-in role settings for {role.display_name}.', 'success')
+            return redirect(url_for('auth.roles_permissions'))
+
+        if action == 'bulk_migrate_builtin_role':
+            source_name = (request.form.get('source_role') or '').strip()
+            target_id = request.form.get('target_custom_role_id', type=int)
+
+            if source_name not in Role.__members__:
+                flash('Select a valid source built-in role.', 'danger')
+                return redirect(url_for('auth.roles_permissions'))
+            source_role = Role[source_name]
+            if source_role == Role.ADMIN:
+                flash('Bulk migration from Admin is not allowed.', 'danger')
+                return redirect(url_for('auth.roles_permissions'))
+
+            target_role = db.session.get(CustomRole, target_id) if target_id else None
+            if target_role is None:
+                flash('Select a valid target custom role.', 'danger')
+                return redirect(url_for('auth.roles_permissions'))
+
+            users = User.query.all()
+            migrated = 0
+            for user in users:
+                if source_role not in user.roles:
+                    continue
+                roles = set(user.roles)
+                roles.discard(source_role)
+                if not roles:
+                    roles.add(Role.VIEWER)
+                user.roles = roles
+
+                custom_roles = list(user.custom_roles_rel)
+                if all(r.id != target_role.id for r in custom_roles):
+                    custom_roles.append(target_role)
+                user.custom_roles_rel = custom_roles
+
+                user.role = next(iter(roles), Role.VIEWER)
+                migrated += 1
+
+            _commit_with_retry()
+            flash(
+                f'Migrated {migrated} user(s) from {source_role.display_name} '
+                f'to custom role "{target_role.name}".',
+                'success',
+            )
+            return redirect(url_for('auth.roles_permissions'))
+
         if action == 'create_custom_role':
             role_name = (request.form.get('role_name') or '').strip()
             role_description = (request.form.get('role_description') or '').strip()
@@ -555,6 +645,10 @@ def roles_permissions():
     # Alphabetically sorted roles by display_name for column order
     sorted_roles = sorted(Role, key=lambda r: r.display_name)
     custom_roles = CustomRole.query.order_by(CustomRole.name.asc()).all()
+    built_in_role_states = {
+        role.name: _get_builtin_role_state(role)
+        for role in sorted_roles
+    }
     custom_role_user_counts = {
         role.id: sum(1 for u in all_users if role in u.custom_roles_rel)
         for role in custom_roles
@@ -564,6 +658,7 @@ def roles_permissions():
         'auth/roles_permissions.html',
         roles=sorted_roles,
         custom_roles=custom_roles,
+        built_in_role_states=built_in_role_states,
         permissions=list(Permission),
         role_user_counts=role_user_counts,
         custom_role_user_counts=custom_role_user_counts,
