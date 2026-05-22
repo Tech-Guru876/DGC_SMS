@@ -169,19 +169,10 @@
                         </div>
                         {% endif %}
 
-<<<<<<< HEAD
-                        {# Active Pharmaceutical Ingredient / API (Pharmaceutical) Feature 7 #}
-                        {% if form.active_ingredient %}
-                        <div class="col-md-8" id="active_ingredient_field">
-                            {{ form.active_ingredient.label(class="form-label fw-semibold") }}
-                            {{ form.active_ingredient(class="form-select", size="6") }}
-                            <div class="form-text">Hold <kbd>Ctrl</kbd> (or <kbd>⌘ Cmd</kbd> on Mac) to select multiple APIs.</div>
-=======
                         {% if form.api %}
                         <div class="col-md-4" id="api_field">
                             {{ form.api.label(class="form-label fw-semibold") }}
                             {{ form.api(class="form-control") }}
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
                         </div>
                         {% endif %}
 

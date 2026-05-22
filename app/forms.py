@@ -542,17 +542,9 @@ class PharmaceuticalSampleRegisterForm(SampleRegisterForm):
         choices=FORMULATION_TYPE_CHOICES,
         validators=[Optional()],
     )
-<<<<<<< HEAD
-    active_ingredient = SelectMultipleField(
-        'Active Pharmaceutical Ingredient (API)',
-        choices=API_CHOICES_MULTI,
-        validators=[Optional()],
-        validate_choice=False,
-=======
     api = StringField(
         'API',
         validators=[Optional(), Length(max=255)]
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
     )
     lot_number = StringField(
         'Lot Number',
@@ -692,16 +684,7 @@ class SampleEditForm(FlaskForm):
         choices=FORMULATION_TYPE_CHOICES,
         validators=[Optional()],
     )
-<<<<<<< HEAD
-    active_ingredient = SelectMultipleField(
-        'Active Pharmaceutical Ingredient (API)',
-        choices=API_CHOICES_MULTI,
-        validators=[Optional()],
-        validate_choice=False,
-    )
-=======
     api = StringField('API', validators=[Optional(), Length(max=255)])
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
     alcohol_type = SelectField(
         'Alcohol Type',
         choices=[

@@ -395,60 +395,6 @@ def test_sidebar_shows_milk_report_link(app, client):
     assert b'Milk Report' in resp.data
 
 
-<<<<<<< HEAD
-def test_dashboard_deadlines_scoped_to_associated_chemist(app, client):
-    with app.app_context():
-        admin = _create_user(Role.ADMIN, username='admin')
-        chem1 = _create_user(Role.CHEMIST, Branch.PHARMACEUTICAL, username='chem1')
-        chem2 = _create_user(Role.CHEMIST, Branch.PHARMACEUTICAL, username='chem2')
-        _create_user(Role.SENIOR_CHEMIST, Branch.PHARMACEUTICAL, username='senior')
-
-        s1 = Sample(
-            lab_number='PH-DUE-1',
-            sample_name='Assoc Sample',
-            sample_type=Branch.PHARMACEUTICAL,
-            date_received=date(2026, 1, 15),
-            uploaded_by=admin.id,
-            status=SampleStatus.ASSIGNED,
-            expected_report_date=date.today(),
-        )
-        s2 = Sample(
-            lab_number='PH-DUE-2',
-            sample_name='Other Sample',
-            sample_type=Branch.PHARMACEUTICAL,
-            date_received=date(2026, 1, 15),
-            uploaded_by=admin.id,
-            status=SampleStatus.ASSIGNED,
-            expected_report_date=date.today(),
-        )
-        db.session.add_all([s1, s2])
-        db.session.flush()
-
-        db.session.add_all([
-            SampleAssignment(
-                sample_id=s1.id, chemist_id=chem1.id,
-                assigned_by=admin.id, test_name='T1',
-            ),
-            SampleAssignment(
-                sample_id=s2.id, chemist_id=chem2.id,
-                assigned_by=admin.id, test_name='T2',
-            ),
-        ])
-        db.session.commit()
-
-    _login(client, 'chem1')
-    resp = client.get('/dashboard')
-    assert resp.status_code == 200
-    assert b'PH-DUE-1' in resp.data
-    assert b'PH-DUE-2' not in resp.data
-    client.get('/auth/logout')
-
-    _login(client, 'senior')
-    resp = client.get('/dashboard')
-    assert resp.status_code == 200
-    assert b'PH-DUE-1' in resp.data
-    assert b'PH-DUE-2' in resp.data
-=======
 # ---------------------------------------------------------------------------
 # Toxicology Report
 # ---------------------------------------------------------------------------
@@ -561,4 +507,3 @@ def test_alcohol_report_filter_sample_name_and_type(app, client):
     assert resp.status_code == 200
     assert b'ALC-FLT01' in resp.data
     assert b'ALC-FLT02' not in resp.data
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)

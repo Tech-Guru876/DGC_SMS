@@ -164,13 +164,6 @@ def _can_show_submit_to_deputy(sample):
 def sample_list():
     query = Sample.query
 
-<<<<<<< HEAD
-    # Filters
-    status_filters = request.args.getlist('status')
-    status_filter = status_filters[0] if len(status_filters) == 1 else None
-    type_filter = request.args.get('type')
-    search = request.args.get('q', '').strip()
-=======
     # Basic filters
     status_filter = request.args.get('status')
     type_filter   = request.args.get('type')
@@ -187,7 +180,6 @@ def sample_list():
     adv_tox_type       = request.args.get('tox_sample_type', '').strip()
     adv_patient_name   = request.args.get('patient_name', '').strip()
     adv_alcohol_type   = request.args.get('alcohol_type', '').strip()
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     if len(status_filters) > 1:
         valid_statuses = []
@@ -252,155 +244,6 @@ def sample_list():
         # Senior Chemists see samples in their branch(es)
         query = query.filter(Sample.sample_type.in_(current_user.branches))
 
-<<<<<<< HEAD
-    # Sorting
-    _sort_columns = {
-        'lab_number':           Sample.lab_number,
-        'sample_name':          Sample.sample_name,
-        'date_received':        Sample.date_received,
-        'expected_report_date': Sample.expected_report_date,
-        'status':               Sample.status,
-    }
-    sort_by = request.args.get('sort', 'date_registered')
-    sort_dir = request.args.get('dir', 'desc')
-    if sort_dir not in ('asc', 'desc'):
-        sort_dir = 'desc'
-
-    sort_col = _sort_columns.get(sort_by, Sample.date_registered)
-    if sort_dir == 'asc':
-        query = query.order_by(sort_col.asc())
-    else:
-        query = query.order_by(sort_col.desc())
-
-    page = request.args.get('page', 1, type=int)
-    pagination = query.paginate(page=page, per_page=25, error_out=False)
-    result_count = pagination.total
-
-    # Compute per-sample working-day countdown to expected_report_date.
-    # For samples without an explicit expected_report_date, derive a virtual
-    # deadline from date_registered + KPI TAT target days for the sample's lab.
-    terminal_statuses = {SampleStatus.CERTIFIED, SampleStatus.COMPLETED, SampleStatus.REJECTED}
-    today = date.today()
-
-    # Branch → KPI metric key that holds the TAT (turnaround) target in days.
-    _BRANCH_TAT_KEY = {
-        Branch.TOXICOLOGY:        'avg_days_toxicology_roa',
-        Branch.PHARMACEUTICAL:    'avg_days_pharma_coa',
-        Branch.PHARMACEUTICAL_NR: 'avg_days_pharma_coa',
-        Branch.FOOD_MILK:         'avg_days_milk_coa',
-        Branch.FOOD_ALCOHOL:      'avg_days_alcohol_coa',
-    }
-
-    # Collect samples that need a virtual deadline (no explicit date, not done).
-    samples_needing_virtual = [
-        s for s in pagination.items
-        if s.expected_report_date is None
-        and s.status not in terminal_statuses
-        and s.sample_type in _BRANCH_TAT_KEY
-        and s.date_registered is not None
-    ]
-
-    # Fetch KPI targets for the fiscal year/quarter of each sample's date_registered.
-    kpi_targets_map = {}  # (kpi_key, year, quarter) -> target_value (days)
-    fallback_targets_map = {}  # kpi_key -> latest target_value across any quarter
-    if samples_needing_virtual:
-        kpi_lookups = set()
-        for s in samples_needing_virtual:
-            kpi_key = _BRANCH_TAT_KEY[s.sample_type]
-            fy = fiscal_year_for_date(s.date_registered)
-            fq = fiscal_quarter_for_date(s.date_registered)
-            kpi_lookups.add((kpi_key, fy, fq))
-        conditions = [
-            db.and_(
-                KpiTarget.kpi_key == k,
-                KpiTarget.year == y,
-                KpiTarget.quarter == q,
-            )
-            for k, y, q in kpi_lookups
-        ]
-        rows = KpiTarget.query.filter(db.or_(*conditions)).all()
-        for row in rows:
-            kpi_targets_map[(row.kpi_key, row.year, row.quarter)] = row.target_value
-
-        # Fallback: if no target for a specific quarter, use the latest available
-        # target for that kpi_key across all quarters.
-        missing_keys = {
-            _BRANCH_TAT_KEY[s.sample_type]
-            for s in samples_needing_virtual
-            if (_BRANCH_TAT_KEY[s.sample_type],
-                fiscal_year_for_date(s.date_registered),
-                fiscal_quarter_for_date(s.date_registered)) not in kpi_targets_map
-        }
-        if missing_keys:
-            fallback_rows = KpiTarget.query.filter(
-                KpiTarget.kpi_key.in_(missing_keys),
-                KpiTarget.target_value.isnot(None),
-            ).order_by(KpiTarget.year.desc(), KpiTarget.quarter.desc()).all()
-            fallback_targets_map = {}  # kpi_key -> latest target_value (any quarter)
-            for row in fallback_rows:
-                if row.kpi_key not in fallback_targets_map:
-                    fallback_targets_map[row.kpi_key] = row.target_value
-
-    # Helper: look up TAT target days for a sample (quarter-specific, then fallback).
-    def _get_target_days(s):
-        kpi_key = _BRANCH_TAT_KEY[s.sample_type]
-        fy = fiscal_year_for_date(s.date_registered)
-        fq = fiscal_quarter_for_date(s.date_registered)
-        return kpi_targets_map.get((kpi_key, fy, fq)) or fallback_targets_map.get(kpi_key)
-
-    # Estimate rough upper bound for virtual deadlines to size the holiday window.
-    # Each working day requires at most ~2 calendar days on average (weekends)
-    # plus a 10-day buffer for public holidays.
-    rough_virtual_ends = []
-    for s in samples_needing_virtual:
-        target_days = _get_target_days(s)
-        if target_days and target_days > 0:
-            reg_date = s.date_registered.date() if isinstance(s.date_registered, datetime) else s.date_registered
-            rough_virtual_ends.append(
-                reg_date + timedelta(days=int(target_days) * 2 + 10)
-            )
-
-    # Pre-fetch holidays once for the full date window to avoid N+1 queries.
-    all_deadline_dates = (
-        [s.expected_report_date for s in pagination.items if s.expected_report_date is not None]
-        + rough_virtual_ends
-    )
-    if all_deadline_dates:
-        window_start = min(today, min(all_deadline_dates))
-        window_end = max(today, max(all_deadline_dates))
-        holidays = fetch_non_working_days(window_start, window_end)
-    else:
-        holidays = set()
-
-    # Compute virtual deadlines (date_registered + KPI target working days).
-    virtual_deadlines = {}
-    for s in samples_needing_virtual:
-        target_days = _get_target_days(s)
-        if target_days and target_days > 0:
-            virtual_deadlines[s.id] = add_working_days(
-                s.date_registered, int(target_days), holidays
-            )
-
-    tat_remaining = {}
-    for sample in pagination.items:
-        if sample.status in terminal_statuses:
-            tat_remaining[sample.id] = None
-            continue
-        deadline = sample.expected_report_date or virtual_deadlines.get(sample.id)
-        if deadline is None:
-            tat_remaining[sample.id] = None
-        elif deadline >= today:
-            # Working days remaining (0 = due today, >0 = future)
-            tat_remaining[sample.id] = (
-                calculate_working_days(today, deadline, holidays) - 1
-            )
-        else:
-            # Overdue: count working days from the deadline up to (but not including)
-            # today, then negate to produce a negative "days remaining" value.
-            tat_remaining[sample.id] = -(
-                calculate_working_days(deadline, today - timedelta(days=1), holidays)
-            )
-=======
     samples = query.order_by(Sample.date_registered.desc()).all()
     result_count = len(samples)
 
@@ -417,7 +260,6 @@ def sample_list():
         'alcohol_type': adv_alcohol_type,
     }
     adv_active = any(adv_filters.values())
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     return render_template(
         'samples/sample_list.html',
@@ -432,17 +274,8 @@ def sample_list():
         adv=adv_filters,
         adv_active=adv_active,
         result_count=result_count,
-<<<<<<< HEAD
-        is_filtered=bool(status_filters or type_filter or search),
-        today_date=today,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        tat_remaining=tat_remaining,
-        terminal_statuses=terminal_statuses,
-=======
         is_filtered=bool(status_filter or type_filter or search or adv_active),
         today_date=date.today(),
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
     )
 
 
@@ -535,15 +368,9 @@ def register():
         ft = _get_field(form, 'formulation_type')
         if ft:
             sample.formulation_type = ft
-<<<<<<< HEAD
-        ai = _get_field(form, 'active_ingredient')
-        if ai:
-            sample.active_ingredient = _serialize_apis(ai)
-=======
         api_val = _get_field(form, 'api')
         if api_val:
             sample.api = api_val
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         at = _get_field(form, 'alcohol_type')
         if at:
             sample.alcohol_type = at
@@ -729,11 +556,7 @@ def edit(sample_id):
         sample.patient_name = form.patient_name.data
         sample.source = form.source.data
         sample.formulation_type = form.formulation_type.data
-<<<<<<< HEAD
-        sample.active_ingredient = _serialize_apis(form.active_ingredient.data)
-=======
         sample.api = form.api.data or None
->>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         sample.alcohol_type = form.alcohol_type.data if form.alcohol_type.data else None
         sample.claim_butt_number = form.claim_butt_number.data
         sample.batch_lot_number = form.batch_lot_number.data or None
