@@ -14,37 +14,116 @@
 <!-- Filters -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="GET" class="row g-2 align-items-end">
-            <div class="col-sm-6 col-md-3">
-                <label class="form-label small fw-semibold mb-1">Search</label>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                    <input type="text" name="q" class="form-control" placeholder="Lab # or name" value="{{ search }}">
+        <form method="GET" id="sample-filter-form">
+            {# ── Basic row ── #}
+            <div class="row g-2 align-items-end">
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Search (Lab # / Name)</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Lab # or name" value="{{ search }}">
+                    </div>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Status</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        {% for s in SampleStatus %}
+                        <option value="{{ s.name }}" {% if status_filter == s.name %}selected{% endif %}>{{ s.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Laboratory</label>
+                    <select name="type" class="form-select form-select-sm">
+                        <option value="">All Types</option>
+                        {% for b in Branch %}
+                        <option value="{{ b.name }}" {% if type_filter == b.name %}selected{% endif %}>{{ b.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-sm-6 col-md-3 d-flex gap-2 align-items-end">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-funnel me-1"></i>Filter
+                    </button>
+                    <a href="{{ url_for('samples.sample_list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-auto"
+                            data-bs-toggle="collapse" data-bs-target="#advancedFilters"
+                            aria-expanded="{{ 'true' if adv_active else 'false' }}"
+                            aria-controls="advancedFilters"
+                            title="Advanced filters">
+                        <i class="bi bi-sliders"></i>
+                        {% if adv_active %}<span class="badge bg-primary ms-1" style="font-size:.65rem;">ON</span>{% endif %}
+                    </button>
                 </div>
             </div>
-            <div class="col-sm-6 col-md-3">
-                <label class="form-label small fw-semibold mb-1">Status</label>
-                <select name="status" class="form-select form-select-sm">
-                    <option value="">All Statuses</option>
-                    {% for s in SampleStatus %}
-                    <option value="{{ s.name }}" {% if status_filter == s.name %}selected{% endif %}>{{ s.value }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-sm-6 col-md-3">
-                <label class="form-label small fw-semibold mb-1">Type</label>
-                <select name="type" class="form-select form-select-sm">
-                    <option value="">All Types</option>
-                    {% for b in Branch %}
-                    <option value="{{ b.name }}" {% if type_filter == b.name %}selected{% endif %}>{{ b.value }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-sm-6 col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-sm btn-primary">
-                    <i class="bi bi-funnel me-1"></i>Filter
-                </button>
-                <a href="{{ url_for('samples.sample_list') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+
+            {# ── Advanced filters (collapsible) ── #}
+            <div class="collapse mt-2 {% if adv_active %}show{% endif %}" id="advancedFilters">
+                <hr class="my-2">
+                <div class="row g-2">
+                    {# Sample Name (dedicated) #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Sample Name</label>
+                        <input type="text" name="sample_name" class="form-control form-control-sm"
+                               placeholder="Sample name" value="{{ adv.sample_name }}">
+                    </div>
+                    {# Source / Hospital (single field – searchable by both labels) #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Source / Hospital</label>
+                        <input type="text" name="source" class="form-control form-control-sm"
+                               placeholder="Source or hospital name" value="{{ adv.source }}">
+                    </div>
+                    {# Parish #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Parish</label>
+                        <input type="text" name="parish" class="form-control form-control-sm"
+                               placeholder="Parish" value="{{ adv.parish }}">
+                    </div>
+                    {# Patient Name #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Patient Name</label>
+                        <input type="text" name="patient_name" class="form-control form-control-sm"
+                               placeholder="Patient name" value="{{ adv.patient_name }}">
+                    </div>
+                    {# Formulation Type (Pharma) #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Formulation Type</label>
+                        <input type="text" name="formulation_type" class="form-control form-control-sm"
+                               placeholder="e.g. Tablet, Capsule" value="{{ adv.formulation_type }}">
+                    </div>
+                    {# API (Pharma) #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">API</label>
+                        <input type="text" name="api" class="form-control form-control-sm"
+                               placeholder="Active ingredient" value="{{ adv.api }}">
+                    </div>
+                    {# Milk Type (Food Milk) #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Milk Type</label>
+                        <select name="milk_type" class="form-select form-select-sm">
+                            <option value="">All</option>
+                            <option value="R" {% if adv.milk_type == 'R' %}selected{% endif %}>Raw Milk</option>
+                            <option value="P" {% if adv.milk_type == 'P' %}selected{% endif %}>Processed Milk</option>
+                        </select>
+                    </div>
+                    {# Alcohol Type (Food Alcohol) #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Alcohol Type</label>
+                        <select name="alcohol_type" class="form-select form-select-sm">
+                            <option value="">All</option>
+                            <option value="Alcohol Determination" {% if adv.alcohol_type == 'Alcohol Determination' %}selected{% endif %}>Alcohol Determination</option>
+                            <option value="Denatured Alcohol (bitrex)" {% if adv.alcohol_type == 'Denatured Alcohol (bitrex)' %}selected{% endif %}>Denatured Alcohol (bitrex)</option>
+                            <option value="Alcohol Determination and Denatured" {% if adv.alcohol_type == 'Alcohol Determination and Denatured' %}selected{% endif %}>Alcohol Determination and Denatured</option>
+                        </select>
+                    </div>
+                    {# Toxicology Sample Type #}
+                    <div class="col-sm-6 col-md-3">
+                        <label class="form-label small fw-semibold mb-1">Tox. Sample Type</label>
+                        <input type="text" name="tox_sample_type" class="form-control form-control-sm"
+                               placeholder="e.g. Blood, Urine" value="{{ adv.tox_sample_type }}">
+                    </div>
+                </div>
             </div>
         </form>
     </div>

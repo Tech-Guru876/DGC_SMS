@@ -24,7 +24,16 @@ def _setup_senior(app):
         return sc.id
 
 
-def _register_pharma_sample(app, lab, name='Test Drug', certified=False):
+def _register_pharma_sample(
+    app,
+    lab,
+    name='Test Drug',
+    certified=False,
+    formulation_type=None,
+    api=None,
+    source=None,
+    description=None,
+):
     """Register a pharmaceutical sample directly in the DB."""
     with app.app_context():
         officer = User.query.filter_by(username='admin').first()
@@ -37,6 +46,10 @@ def _register_pharma_sample(app, lab, name='Test Drug', certified=False):
             date_received=date(2026, 1, 15),
             uploaded_by=officer.id,
             status=SampleStatus.CERTIFIED if certified else SampleStatus.REGISTERED,
+            formulation_type=formulation_type,
+            api=api,
+            source=source,
+            description=description,
         )
         if certified:
             s.certified_at = datetime(2026, 2, 15, tzinfo=timezone.utc)
@@ -208,6 +221,36 @@ def test_pharma_report_download_csv(app, client):
     assert b'Lab Number' in resp.data
 
 
+def test_pharma_report_filter_formulation_api_source(app, client):
+    _setup_admin(app)
+    _register_pharma_sample(
+        app,
+        'PH-FLT01',
+        name='Pain Relief Tablet',
+        formulation_type='Tablet',
+        api='Acetaminophen',
+        source='Central Medical Store',
+        description='Contains pain reliever',
+    )
+    _register_pharma_sample(
+        app,
+        'PH-FLT02',
+        name='Antibiotic Syrup',
+        formulation_type='Syrup',
+        api='Amoxicillin',
+        source='Private Import',
+        description='Contains antibiotic',
+    )
+    _login(client, 'admin')
+
+    resp = client.get(
+        '/reports/pharma?year=2026&formulation_type=Tab&api=Acetaminophen&source=Central'
+    )
+    assert resp.status_code == 200
+    assert b'PH-FLT01' in resp.data
+    assert b'PH-FLT02' not in resp.data
+
+
 # ---------------------------------------------------------------------------
 # Sidebar and navigation
 # ---------------------------------------------------------------------------
@@ -232,7 +275,14 @@ def test_kpi_dashboard_has_report_links(app, client):
 # Milk Report
 # ---------------------------------------------------------------------------
 
-def _register_milk_sample(app, lab, name='Test Milk', certified=False):
+def _register_milk_sample(
+    app,
+    lab,
+    name='Test Milk',
+    certified=False,
+    parish=None,
+    milk_type='R',
+):
     """Register a milk sample directly in the DB."""
     with app.app_context():
         officer = User.query.filter_by(username='admin').first()
@@ -245,7 +295,8 @@ def _register_milk_sample(app, lab, name='Test Milk', certified=False):
             date_received=date(2026, 1, 15),
             uploaded_by=officer.id,
             status=SampleStatus.CERTIFIED if certified else SampleStatus.REGISTERED,
-            milk_type='R',
+            parish=parish,
+            milk_type=milk_type,
             volume='500ml',
         )
         if certified:
@@ -313,6 +364,30 @@ def test_milk_report_shows_turnaround(app, client):
     assert b'31' in resp.data
 
 
+def test_milk_report_filter_parish_and_milk_type(app, client):
+    _setup_admin(app)
+    _register_milk_sample(
+        app,
+        'MILK-FLT01',
+        name='Farm Milk A',
+        parish='Kingston',
+        milk_type='R',
+    )
+    _register_milk_sample(
+        app,
+        'MILK-FLT02',
+        name='Farm Milk B',
+        parish='St. Andrew',
+        milk_type='P',
+    )
+    _login(client, 'admin')
+
+    resp = client.get('/reports/milk?year=2026&parish=King&milk_type=R')
+    assert resp.status_code == 200
+    assert b'MILK-FLT01' in resp.data
+    assert b'MILK-FLT02' not in resp.data
+
+
 def test_sidebar_shows_milk_report_link(app, client):
     _setup_admin(app)
     _login(client, 'admin')
@@ -320,6 +395,7 @@ def test_sidebar_shows_milk_report_link(app, client):
     assert b'Milk Report' in resp.data
 
 
+<<<<<<< HEAD
 def test_dashboard_deadlines_scoped_to_associated_chemist(app, client):
     with app.app_context():
         admin = _create_user(Role.ADMIN, username='admin')
@@ -372,3 +448,117 @@ def test_dashboard_deadlines_scoped_to_associated_chemist(app, client):
     assert resp.status_code == 200
     assert b'PH-DUE-1' in resp.data
     assert b'PH-DUE-2' in resp.data
+=======
+# ---------------------------------------------------------------------------
+# Toxicology Report
+# ---------------------------------------------------------------------------
+
+def _register_toxicology_sample(
+    app,
+    lab,
+    name='Blood Sample',
+    hospital=None,
+    sample_type_name=None,
+    patient_name=None,
+):
+    """Register a toxicology sample directly in the DB."""
+    with app.app_context():
+        officer = User.query.filter_by(username='admin').first()
+        if not officer:
+            officer = _create_user(Role.ADMIN, username='admin')
+        s = Sample(
+            lab_number=lab,
+            sample_name=name,
+            sample_type=Branch.TOXICOLOGY,
+            date_received=date(2026, 1, 15),
+            uploaded_by=officer.id,
+            status=SampleStatus.REGISTERED,
+            source=hospital,
+            toxicology_sample_type_name=sample_type_name,
+            patient_name=patient_name,
+            volume='10ml',
+        )
+        db.session.add(s)
+        db.session.commit()
+        return s.id
+
+
+def test_toxicology_report_filter_hospital_sample_type_patient_name(app, client):
+    _setup_admin(app)
+    _register_toxicology_sample(
+        app,
+        'TOX-FLT01',
+        hospital='Kingston Public Hospital',
+        sample_type_name='Urine',
+        patient_name='John Brown',
+    )
+    _register_toxicology_sample(
+        app,
+        'TOX-FLT02',
+        hospital='Spanish Town Hospital',
+        sample_type_name='Blood',
+        patient_name='Jane Doe',
+    )
+    _login(client, 'admin')
+
+    resp = client.get(
+        '/reports/toxicology?year=2026&hospital=Kingston&sample_type=Uri&patient_name=John'
+    )
+    assert resp.status_code == 200
+    assert b'TOX-FLT01' in resp.data
+    assert b'TOX-FLT02' not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Alcohol Report
+# ---------------------------------------------------------------------------
+
+def _register_alcohol_sample(
+    app,
+    lab,
+    name='Rum Product',
+    alcohol_type=None,
+):
+    """Register an alcohol sample directly in the DB."""
+    with app.app_context():
+        officer = User.query.filter_by(username='admin').first()
+        if not officer:
+            officer = _create_user(Role.ADMIN, username='admin')
+        s = Sample(
+            lab_number=lab,
+            sample_name=name,
+            sample_type=Branch.FOOD_ALCOHOL,
+            date_received=date(2026, 1, 15),
+            uploaded_by=officer.id,
+            status=SampleStatus.REGISTERED,
+            alcohol_type=alcohol_type,
+            quantity='1 bottle',
+        )
+        db.session.add(s)
+        db.session.commit()
+        return s.id
+
+
+def test_alcohol_report_filter_sample_name_and_type(app, client):
+    _setup_admin(app)
+    _register_alcohol_sample(
+        app,
+        'ALC-FLT01',
+        name='Rum Gold Reserve',
+        alcohol_type='Alcohol Determination',
+    )
+    _register_alcohol_sample(
+        app,
+        'ALC-FLT02',
+        name='Denatured Spirit',
+        alcohol_type='Denatured Alcohol (bitrex)',
+    )
+    _login(client, 'admin')
+
+    resp = client.get(
+        '/reports/alcohol?year=2026&sample_name=Rum&alcohol_type=Determination'
+    )
+    assert resp.status_code == 200
+    assert b'ALC-FLT01' in resp.data
+    assert b'ALC-FLT02' not in resp.data
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)

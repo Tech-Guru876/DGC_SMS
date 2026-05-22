@@ -542,11 +542,17 @@ class PharmaceuticalSampleRegisterForm(SampleRegisterForm):
         choices=FORMULATION_TYPE_CHOICES,
         validators=[Optional()],
     )
+<<<<<<< HEAD
     active_ingredient = SelectMultipleField(
         'Active Pharmaceutical Ingredient (API)',
         choices=API_CHOICES_MULTI,
         validators=[Optional()],
         validate_choice=False,
+=======
+    api = StringField(
+        'API',
+        validators=[Optional(), Length(max=255)]
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
     )
     lot_number = StringField(
         'Lot Number',
@@ -686,12 +692,16 @@ class SampleEditForm(FlaskForm):
         choices=FORMULATION_TYPE_CHOICES,
         validators=[Optional()],
     )
+<<<<<<< HEAD
     active_ingredient = SelectMultipleField(
         'Active Pharmaceutical Ingredient (API)',
         choices=API_CHOICES_MULTI,
         validators=[Optional()],
         validate_choice=False,
     )
+=======
+    api = StringField('API', validators=[Optional(), Length(max=255)])
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
     alcohol_type = SelectField(
         'Alcohol Type',
         choices=[
@@ -1124,7 +1134,9 @@ class BackDateRequestForm(FlaskForm):
             ('expected_completion', 'Expected Completion Date'),
             ('report_submitted_at', 'Report Submitted Date'),
             ('test_date', 'Test Date'),
-            ('certificate_prepared_at', 'Certificate Prepared Date'),
+            ('reviewed_at', 'Senior Chemist Review Date'),
+            ('deputy_reviewed_at', 'Deputy Government Chemist Review Date'),
+            ('certificate_prepared_at', 'Certificate Reissue Date'),
             ('certified_at', 'Certificate Signed Date'),
         ],
         validators=[DataRequired(message='Please select a date field.')],

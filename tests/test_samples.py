@@ -1,6 +1,10 @@
 import io
 import json
+<<<<<<< HEAD
 from datetime import date, datetime, timedelta
+=======
+from datetime import date, datetime
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 from app import db
 from app.models import (
     Sample, SampleAssignment, User, Role, Branch,
@@ -2019,6 +2023,139 @@ def test_backdate_decision_notifies_requester(app, client):
         assert len(notifs) >= 1
 
 
+def test_backdate_request_supports_new_review_and_reissue_fields(app, client):
+    """Back-date requests should support senior review, deputy review, and certificate reissue dates."""
+    officer_id, sc_id, chemist_id, deputy_id, hod_id = _setup_users(app)
+
+    _login(client, 'officer')
+    _register_sample(client)
+    client.get('/auth/logout')
+
+    _login(client, 'senior')
+    with app.app_context():
+        sample = Sample.query.first()
+    client.post(f'/samples/{sample.id}/assign', data={
+        'chemist_ids': [chemist_id],
+        'test_name': 'Analysis',
+    }, follow_redirects=True)
+    client.get('/auth/logout')
+
+    with app.app_context():
+        sample = Sample.query.first()
+        assignment = SampleAssignment.query.first()
+        sample.deputy_reviewed_at = datetime(2026, 1, 20, 10, 30)
+        sample.certificate_prepared_at = datetime(2026, 1, 22, 11, 45)
+        assignment.reviewed_at = datetime(2026, 1, 18, 9, 15)
+        db.session.commit()
+        sample_id = sample.id
+        assignment_id = assignment.id
+
+    _login(client, 'officer')
+
+    resp = client.post(f'/samples/{sample_id}/request-backdate', data={
+        'field_name': 'reviewed_at',
+        'assignment_id': str(assignment_id),
+        'proposed_date': '2026-01-17',
+        'reason': 'Senior review completed earlier.',
+    }, follow_redirects=True)
+    assert b'submitted for approval' in resp.data
+
+    resp = client.post(f'/samples/{sample_id}/request-backdate', data={
+        'field_name': 'deputy_reviewed_at',
+        'assignment_id': '0',
+        'proposed_date': '2026-01-19',
+        'reason': 'Deputy review date correction.',
+    }, follow_redirects=True)
+    assert b'submitted for approval' in resp.data
+
+    resp = client.post(f'/samples/{sample_id}/request-backdate', data={
+        'field_name': 'certificate_prepared_at',
+        'assignment_id': '0',
+        'proposed_date': '2026-01-21',
+        'reason': 'Certificate reissue date correction.',
+    }, follow_redirects=True)
+    assert b'submitted for approval' in resp.data
+
+    with app.app_context():
+        from app.models import BackDateRequest
+        assert BackDateRequest.query.filter_by(
+            sample_id=sample_id, field_name='reviewed_at'
+        ).count() == 1
+        assert BackDateRequest.query.filter_by(
+            sample_id=sample_id, field_name='deputy_reviewed_at'
+        ).count() == 1
+        assert BackDateRequest.query.filter_by(
+            sample_id=sample_id, field_name='certificate_prepared_at'
+        ).count() == 1
+
+
+def test_backdate_decision_applies_senior_and_deputy_review_dates(app, client):
+    """Approved back-date requests should update senior review and deputy review dates."""
+    officer_id, sc_id, chemist_id, deputy_id, hod_id = _setup_users(app)
+
+    _login(client, 'officer')
+    _register_sample(client)
+    client.get('/auth/logout')
+
+    _login(client, 'senior')
+    with app.app_context():
+        sample = Sample.query.first()
+    client.post(f'/samples/{sample.id}/assign', data={
+        'chemist_ids': [chemist_id],
+        'test_name': 'Analysis',
+    }, follow_redirects=True)
+    client.get('/auth/logout')
+
+    with app.app_context():
+        sample = Sample.query.first()
+        assignment = SampleAssignment.query.first()
+        sample.deputy_reviewed_at = datetime(2026, 2, 15, 8, 0)
+        assignment.reviewed_at = datetime(2026, 2, 14, 14, 30)
+        db.session.commit()
+        sample_id = sample.id
+        assignment_id = assignment.id
+
+    _login(client, 'officer')
+    client.post(f'/samples/{sample_id}/request-backdate', data={
+        'field_name': 'reviewed_at',
+        'assignment_id': str(assignment_id),
+        'proposed_date': '2026-02-10',
+        'reason': 'Senior review date fix',
+    }, follow_redirects=True)
+    client.post(f'/samples/{sample_id}/request-backdate', data={
+        'field_name': 'deputy_reviewed_at',
+        'assignment_id': '0',
+        'proposed_date': '2026-02-11',
+        'reason': 'Deputy review date fix',
+    }, follow_redirects=True)
+    client.get('/auth/logout')
+
+    _login(client, 'hod')
+    with app.app_context():
+        from app.models import BackDateRequest
+        req_reviewed = BackDateRequest.query.filter_by(
+            sample_id=sample_id, field_name='reviewed_at', status='pending'
+        ).first()
+        req_deputy = BackDateRequest.query.filter_by(
+            sample_id=sample_id, field_name='deputy_reviewed_at', status='pending'
+        ).first()
+
+    client.post(f'/backdate-requests/{req_reviewed.id}/decide', data={
+        'decision': 'approved',
+        'comments': 'Approved',
+    }, follow_redirects=True)
+    client.post(f'/backdate-requests/{req_deputy.id}/decide', data={
+        'decision': 'approved',
+        'comments': 'Approved',
+    }, follow_redirects=True)
+
+    with app.app_context():
+        sample = Sample.query.first()
+        assignment = SampleAssignment.query.first()
+        assert assignment.reviewed_at.date().isoformat() == '2026-02-10'
+        assert sample.deputy_reviewed_at.date().isoformat() == '2026-02-11'
+
+
 # ---------------------------------------------------------------------------
 # Resubmit to Deputy
 # ---------------------------------------------------------------------------
@@ -2100,6 +2237,7 @@ def test_resubmit_to_deputy_redirects(app, client):
     assert resp2.status_code == 200
 
 
+<<<<<<< HEAD
 def test_invoice_create_shows_test_assignments(app, client):
     """Invoice creation page should show sample test assignments for billing."""
     officer_id, sc_id, chemist_id, deputy_id, hod_id = _setup_users(app)
@@ -2605,3 +2743,222 @@ def test_summary_report_file_creates_document_version(app, client):
         assert dv.version_number == 1
         assert dv.upload_label == 'original'
         assert dv.original_name == 'summary.pdf'
+=======
+# ---------------------------------------------------------------------------
+# Sample dashboard advanced filters
+# ---------------------------------------------------------------------------
+
+def _create_sample_direct(app, **kwargs):
+    """Create a Sample record directly in the DB and return its id."""
+    defaults = dict(
+        lab_number='TST/001',
+        sample_name='Test Sample',
+        sample_type=Branch.PHARMACEUTICAL,
+        date_received=date.today(),
+        date_registered=datetime.utcnow(),
+        status=SampleStatus.REGISTERED,
+    )
+    defaults.update(kwargs)
+    with app.app_context():
+        s = Sample(**defaults)
+        db.session.add(s)
+        db.session.commit()
+        return s.id
+
+
+def test_dashboard_filter_by_formulation_type(app, client):
+    """Dashboard should filter samples by formulation_type."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='PH/001', sample_name='Drug A', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, formulation_type='Tablet',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='PH/002', sample_name='Drug B', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, formulation_type='Capsule',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?formulation_type=Tablet')
+    assert resp.status_code == 200
+    assert b'Drug A' in resp.data
+    assert b'Drug B' not in resp.data
+
+
+def test_dashboard_filter_by_api(app, client):
+    """Dashboard should filter samples by API."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='PH/001', sample_name='Drug A', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, api='Amoxicillin',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='PH/002', sample_name='Drug B', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, api='Paracetamol',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?api=amoxicillin')
+    assert resp.status_code == 200
+    assert b'Drug A' in resp.data
+    assert b'Drug B' not in resp.data
+
+
+def test_dashboard_filter_by_source(app, client):
+    """Dashboard should filter samples by source."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='PH/001', sample_name='Drug A', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, source='Manufacturer X',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='PH/002', sample_name='Drug B', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, source='Importer Y',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?source=manufacturer+x')
+    assert resp.status_code == 200
+    assert b'Drug A' in resp.data
+    assert b'Drug B' not in resp.data
+
+
+def test_dashboard_filter_by_parish(app, client):
+    """Dashboard should filter milk samples by parish."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='ML/001', sample_name='Milk A', sample_type=Branch.FOOD_MILK,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, parish='Kingston',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='ML/002', sample_name='Milk B', sample_type=Branch.FOOD_MILK,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, parish='St. Andrew',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?parish=Kingston')
+    assert resp.status_code == 200
+    assert b'Milk A' in resp.data
+    assert b'Milk B' not in resp.data
+
+
+def test_dashboard_filter_by_milk_type(app, client):
+    """Dashboard should filter milk samples by milk type (R/P)."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='ML/001', sample_name='RawMilkSampleAlpha', sample_type=Branch.FOOD_MILK,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, milk_type='R',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='ML/002', sample_name='ProcMilkSampleBeta', sample_type=Branch.FOOD_MILK,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, milk_type='P',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?milk_type=R')
+    assert resp.status_code == 200
+    assert b'RawMilkSampleAlpha' in resp.data
+    assert b'ProcMilkSampleBeta' not in resp.data
+
+
+def test_dashboard_filter_by_patient_name(app, client):
+    """Dashboard should filter toxicology samples by patient name."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='TX/001', sample_name='Tox A', sample_type=Branch.TOXICOLOGY,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, patient_name='John Doe',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='TX/002', sample_name='Tox B', sample_type=Branch.TOXICOLOGY,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, patient_name='Jane Smith',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?patient_name=john+doe')
+    assert resp.status_code == 200
+    assert b'Tox A' in resp.data
+    assert b'Tox B' not in resp.data
+
+
+def test_dashboard_filter_by_tox_sample_type(app, client):
+    """Dashboard should filter toxicology samples by toxicology_sample_type_name."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='TX/001', sample_name='Tox A', sample_type=Branch.TOXICOLOGY,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, toxicology_sample_type_name='Blood',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='TX/002', sample_name='Tox B', sample_type=Branch.TOXICOLOGY,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, toxicology_sample_type_name='Urine',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?tox_sample_type=blood')
+    assert resp.status_code == 200
+    assert b'Tox A' in resp.data
+    assert b'Tox B' not in resp.data
+
+
+def test_dashboard_filter_by_alcohol_type(app, client):
+    """Dashboard should filter alcohol samples by alcohol_type."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='AL/001', sample_name='Alc A', sample_type=Branch.FOOD_ALCOHOL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, alcohol_type='Alcohol Determination',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='AL/002', sample_name='Alc B', sample_type=Branch.FOOD_ALCOHOL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED,
+                    alcohol_type='Denatured Alcohol (bitrex)',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?alcohol_type=Alcohol+Determination')
+    assert resp.status_code == 200
+    assert b'Alc A' in resp.data
+    assert b'Alc B' not in resp.data
+
+
+def test_dashboard_filter_by_sample_name(app, client):
+    """Dashboard should filter by dedicated sample_name advanced filter."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='PH/001', sample_name='Unique Alpha Drug', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, uploaded_by=officer_id)
+        s2 = Sample(lab_number='PH/002', sample_name='Beta Drug', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?sample_name=Alpha')
+    assert resp.status_code == 200
+    assert b'Unique Alpha Drug' in resp.data
+    assert b'Beta Drug' not in resp.data
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)

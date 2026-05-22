@@ -475,10 +475,11 @@ def notify_backdate_request_submitted(backdate_request):
     """Notify HOD and Deputy when a back-date request is submitted."""
     sample = backdate_request.sample
     requester = backdate_request.requester
+    field_label = backdate_request.field_name.replace('_', ' ').title()
     title = f'Back-Date Request: {sample.lab_number}'
     message = (
-        f'{requester.full_name} has requested to change the registration '
-        f'date of sample "{sample.sample_name}" '
+        f'{requester.full_name} has requested to change {field_label} for '
+        f'sample "{sample.sample_name}" '
         f'(Lab# {sample.lab_number}) from {backdate_request.original_date} '
         f'to {backdate_request.proposed_date}.\n\n'
         f'Reason: {backdate_request.reason or "N/A"}\n\n'
@@ -500,9 +501,10 @@ def notify_backdate_request_decided(backdate_request):
     sample = backdate_request.sample
     decision = backdate_request.status  # 'approved' or 'denied'
     decider = backdate_request.decider
+    field_label = backdate_request.field_name.replace('_', ' ').title()
     title = f'Back-Date Request {decision.title()}: {sample.lab_number}'
     message = (
-        f'Your request to change the registration date of sample '
+        f'Your request to change {field_label} for sample '
         f'"{sample.sample_name}" (Lab# {sample.lab_number}) from '
         f'{backdate_request.original_date} to {backdate_request.proposed_date} '
         f'has been {decision} by {decider.full_name}.'

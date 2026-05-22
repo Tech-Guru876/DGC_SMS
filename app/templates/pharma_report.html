@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <h2><i class="bi bi-capsule"></i> Pharmaceutical Report</h2>
-    <a href="{{ url_for('main.pharma_report_download', year=year, quarter=quarter) }}"
+    <a href="{{ url_for('main.pharma_report_download', year=year, quarter=quarter, formulation_type=formulation_filter, api=api_filter, source=source_filter) }}"
        class="btn btn-outline-primary btn-sm">
         <i class="bi bi-download me-1"></i>Download CSV
     </a>
@@ -51,6 +51,7 @@
                     {% endfor %}
                 </select>
             </div>
+<<<<<<< HEAD
             <!-- Feature 8: Date Reported range -->
             <div class="col-sm-6 col-md-2">
                 <label class="form-label small fw-semibold mb-1">Date Reported From</label>
@@ -79,6 +80,22 @@
             <div class="col-sm-auto">
                 <button type="submit" class="btn btn-primary btn-sm">Filter</button>
                 <a href="{{ url_for('main.pharma_report', year=year) }}" class="btn btn-outline-secondary btn-sm">Clear</a>
+=======
+            <div class="col-sm-6 col-md-2">
+                <label class="form-label small fw-semibold mb-1">Formulation Type</label>
+                <input type="text" name="formulation_type" value="{{ formulation_filter }}" class="form-control form-control-sm" placeholder="Formulation type">
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <label class="form-label small fw-semibold mb-1">API</label>
+                <input type="text" name="api" value="{{ api_filter }}" class="form-control form-control-sm" placeholder="API">
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <label class="form-label small fw-semibold mb-1">Source</label>
+                <input type="text" name="source" value="{{ source_filter }}" class="form-control form-control-sm" placeholder="Source">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Search</button>
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
             </div>
         </form>
     </div>
@@ -172,7 +189,11 @@
                     </td>
                     <td>{{ s.sample_name }}</td>
                     <td>{{ s.formulation_type or '—' }}</td>
+<<<<<<< HEAD
                     <td>{{ s.active_ingredient or '—' }}</td>
+=======
+                    <td>{{ s.api or '—' }}</td>
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
                     <td>
                         {% set status_colors = {
                             'Registered': 'secondary', 'Assigned': 'primary',
@@ -224,7 +245,11 @@
                 </tr>
                 {% else %}
                 <tr>
+<<<<<<< HEAD
                     <td colspan="13" class="text-center text-muted py-4">No pharmaceutical samples found.</td>
+=======
+                    <td colspan="10" class="text-center text-muted py-4">No pharmaceutical samples found.</td>
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
                 </tr>
                 {% endfor %}
             </tbody>

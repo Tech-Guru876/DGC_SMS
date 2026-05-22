@@ -164,11 +164,30 @@ def _can_show_submit_to_deputy(sample):
 def sample_list():
     query = Sample.query
 
+<<<<<<< HEAD
     # Filters
     status_filters = request.args.getlist('status')
     status_filter = status_filters[0] if len(status_filters) == 1 else None
     type_filter = request.args.get('type')
     search = request.args.get('q', '').strip()
+=======
+    # Basic filters
+    status_filter = request.args.get('status')
+    type_filter   = request.args.get('type')
+    search        = request.args.get('q', '').strip()
+
+    # Advanced filters
+    adv_sample_name    = request.args.get('sample_name', '').strip()
+    adv_formulation    = request.args.get('formulation_type', '').strip()
+    adv_api            = request.args.get('api', '').strip()
+    adv_source         = request.args.get('source', '').strip()
+    adv_parish         = request.args.get('parish', '').strip()
+    adv_milk_type      = request.args.get('milk_type', '').strip()
+    adv_hospital       = request.args.get('hospital', '').strip()
+    adv_tox_type       = request.args.get('tox_sample_type', '').strip()
+    adv_patient_name   = request.args.get('patient_name', '').strip()
+    adv_alcohol_type   = request.args.get('alcohol_type', '').strip()
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     if len(status_filters) > 1:
         valid_statuses = []
@@ -197,6 +216,30 @@ def sample_list():
             )
         )
 
+    # Apply advanced filters
+    if adv_sample_name:
+        query = query.filter(Sample.sample_name.ilike(f'%{adv_sample_name}%'))
+    if adv_formulation:
+        query = query.filter(Sample.formulation_type.ilike(f'%{adv_formulation}%'))
+    if adv_api:
+        query = query.filter(Sample.api.ilike(f'%{adv_api}%'))
+    if adv_source:
+        query = query.filter(Sample.source.ilike(f'%{adv_source}%'))
+    if adv_parish:
+        query = query.filter(Sample.parish.ilike(f'%{adv_parish}%'))
+    if adv_milk_type in ('R', 'P'):
+        query = query.filter(Sample.milk_type == adv_milk_type)
+    if adv_hospital:
+        query = query.filter(Sample.source.ilike(f'%{adv_hospital}%'))
+    if adv_tox_type:
+        query = query.filter(
+            Sample.toxicology_sample_type_name.ilike(f'%{adv_tox_type}%')
+        )
+    if adv_patient_name:
+        query = query.filter(Sample.patient_name.ilike(f'%{adv_patient_name}%'))
+    if adv_alcohol_type:
+        query = query.filter(Sample.alcohol_type.ilike(f'%{adv_alcohol_type}%'))
+
     # Role-based filtering
     # Officers, Deputies, HOD, and Admins see all samples (no filter).
     if current_user.has_role(Role.CHEMIST) and not current_user.has_any_role(Role.OFFICER, Role.SENIOR_CHEMIST, Role.DEPUTY, Role.HOD, Role.ADMIN):
@@ -209,6 +252,7 @@ def sample_list():
         # Senior Chemists see samples in their branch(es)
         query = query.filter(Sample.sample_type.in_(current_user.branches))
 
+<<<<<<< HEAD
     # Sorting
     _sort_columns = {
         'lab_number':           Sample.lab_number,
@@ -356,6 +400,24 @@ def sample_list():
             tat_remaining[sample.id] = -(
                 calculate_working_days(deadline, today - timedelta(days=1), holidays)
             )
+=======
+    samples = query.order_by(Sample.date_registered.desc()).all()
+    result_count = len(samples)
+
+    adv_filters = {
+        'sample_name': adv_sample_name,
+        'formulation_type': adv_formulation,
+        'api': adv_api,
+        'source': adv_source,
+        'parish': adv_parish,
+        'milk_type': adv_milk_type,
+        'hospital': adv_hospital,
+        'tox_sample_type': adv_tox_type,
+        'patient_name': adv_patient_name,
+        'alcohol_type': adv_alcohol_type,
+    }
+    adv_active = any(adv_filters.values())
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     return render_template(
         'samples/sample_list.html',
@@ -367,13 +429,20 @@ def sample_list():
         status_filters=status_filters,
         type_filter=type_filter,
         search=search,
+        adv=adv_filters,
+        adv_active=adv_active,
         result_count=result_count,
+<<<<<<< HEAD
         is_filtered=bool(status_filters or type_filter or search),
         today_date=today,
         sort_by=sort_by,
         sort_dir=sort_dir,
         tat_remaining=tat_remaining,
         terminal_statuses=terminal_statuses,
+=======
+        is_filtered=bool(status_filter or type_filter or search or adv_active),
+        today_date=date.today(),
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
     )
 
 
@@ -466,9 +535,15 @@ def register():
         ft = _get_field(form, 'formulation_type')
         if ft:
             sample.formulation_type = ft
+<<<<<<< HEAD
         ai = _get_field(form, 'active_ingredient')
         if ai:
             sample.active_ingredient = _serialize_apis(ai)
+=======
+        api_val = _get_field(form, 'api')
+        if api_val:
+            sample.api = api_val
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         at = _get_field(form, 'alcohol_type')
         if at:
             sample.alcohol_type = at
@@ -654,7 +729,11 @@ def edit(sample_id):
         sample.patient_name = form.patient_name.data
         sample.source = form.source.data
         sample.formulation_type = form.formulation_type.data
+<<<<<<< HEAD
         sample.active_ingredient = _serialize_apis(form.active_ingredient.data)
+=======
+        sample.api = form.api.data or None
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         sample.alcohol_type = form.alcohol_type.data if form.alcohol_type.data else None
         sample.claim_butt_number = form.claim_butt_number.data
         sample.batch_lot_number = form.batch_lot_number.data or None
@@ -2302,12 +2381,14 @@ def request_backdate(sample_id):
             'date_registered': sample.date_registered,
             'date_received': sample.date_received,
             'expected_report_date': sample.expected_report_date,
+            'deputy_reviewed_at': sample.deputy_reviewed_at,
             'certificate_prepared_at': sample.certificate_prepared_at,
             'certified_at': sample.certified_at,
         }
         # Fields on assignment
         assignment_date_fields = {
-            'assigned_date', 'expected_completion', 'report_submitted_at', 'test_date',
+            'assigned_date', 'expected_completion', 'report_submitted_at',
+            'test_date', 'reviewed_at',
         }
 
         original = ''

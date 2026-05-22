@@ -60,6 +60,7 @@ MIGRATIONS = [
     # samples – new type-specific fields
     ('samples', 'volume', 'VARCHAR(100)'),
     ('samples', 'formulation_type', 'VARCHAR(100)'),
+    ('samples', 'api', 'VARCHAR(255)'),
     ('samples', 'alcohol_type', 'VARCHAR(100)'),
     ('samples', 'claim_butt_number', 'VARCHAR(100)'),
     # samples – expected report date
@@ -335,6 +336,20 @@ def _existing_columns(cursor, table):
     return {row[1] for row in cursor.fetchall()}
 
 
+def _table_exists(cursor, table):
+    cursor.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (table,),
+    )
+    return cursor.fetchone() is not None
+
+
+def _column_exists(cursor, table, column):
+    if not _table_exists(cursor, table):
+        return False
+    return column in _existing_columns(cursor, table)
+
+
 def migrate(db_path):
     if not os.path.exists(db_path):
         print(f'Database not found at {db_path} — nothing to migrate.')
@@ -350,7 +365,13 @@ def migrate(db_path):
 
     # Add any missing columns
     cache = {}
+    missing_tables_logged = set()
     for table, col, typedef in MIGRATIONS:
+        if not _table_exists(cur, table):
+            if table not in missing_tables_logged:
+                print(f'  Table  {table}: missing, skipped columns')
+                missing_tables_logged.add(table)
+            continue
         if table not in cache:
             cache[table] = _existing_columns(cur, table)
         if col in cache[table]:
@@ -358,6 +379,8 @@ def migrate(db_path):
         cur.execute(f'ALTER TABLE "{table}" ADD COLUMN "{col}" {typedef}')
         cache[table].add(col)
         print(f'  Column {table}.{col}: added')
+
+    _backfill_pharma_api(cur)
 
     conn.commit()
 
@@ -373,9 +396,72 @@ def migrate(db_path):
     print('Migration complete.')
 
 
+def _extract_api_candidate(description, sample_name):
+    """Try to derive an API string from legacy text fields."""
+    for raw in (description or '', sample_name or ''):
+        text = (raw or '').strip()
+        if not text:
+            continue
+
+        lower = text.lower()
+        for marker in ('api:', 'active ingredient:', 'active pharmaceutical ingredient:'):
+            idx = lower.find(marker)
+            if idx != -1:
+                candidate = text[idx + len(marker):].strip(' .;,-')
+                if candidate:
+                    return candidate[:255]
+
+        # Conservative fallback for short values commonly used as API labels.
+        if len(text) <= 120 and len(text.split()) <= 6:
+            return text[:255]
+
+    return None
+
+
+def _backfill_pharma_api(cur):
+    """Backfill samples.api for existing pharma rows where API is empty."""
+    if not _column_exists(cur, 'samples', 'api'):
+        print('  Backfill samples.api skipped (samples/api column missing)')
+        return
+
+    cur.execute(
+        '''
+        SELECT id, sample_type, sample_name, description, api
+        FROM samples
+        WHERE api IS NULL OR TRIM(api) = ''
+        '''
+    )
+    rows = cur.fetchall()
+
+    updated = 0
+    pharma_types = {
+        'PHARMACEUTICAL',
+        'PHARMACEUTICAL_NR',
+        'Pharmaceutical',
+        'Not Registered Pharm',
+    }
+    for sample_id, sample_type, sample_name, description, _api in rows:
+        if sample_type not in pharma_types:
+            continue
+        candidate = _extract_api_candidate(description, sample_name)
+        if not candidate:
+            continue
+        cur.execute(
+            'UPDATE samples SET api = ? WHERE id = ? AND (api IS NULL OR TRIM(api) = "")',
+            (candidate, sample_id),
+        )
+        updated += cur.rowcount
+
+    print(f'  Backfill samples.api: updated {updated} row(s)')
+
+
 def _migrate_roles_branches(cur):
     """Copy role/branch from legacy columns into user_roles/user_branches tables.
     Only inserts rows that don't already exist."""
+    if not _table_exists(cur, 'users'):
+        print('  Legacy users table missing — skipping role/branch copy')
+        return
+
     # Migrate roles
     cur.execute(
         'SELECT id, role FROM users WHERE role IS NOT NULL'
@@ -404,6 +490,10 @@ def _make_legacy_columns_nullable(cur):
     are nullable.  SQLite doesn't support ALTER COLUMN, so we have to do the
     standard copy-rename dance.  This is idempotent: if the columns are already
     nullable, the operation is a harmless no-op."""
+    if not _table_exists(cur, 'users'):
+        print('  Legacy users table missing — skipping nullable migration')
+        return
+
     # Check whether migration is needed
     cur.execute('PRAGMA table_info("users")')
     cols_info = cur.fetchall()

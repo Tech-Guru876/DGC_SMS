@@ -178,6 +178,10 @@
                             <dt class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem; letter-spacing:.04em;">{% if sample.sample_type.name == 'TOXICOLOGY' %}Hospital{% else %}Source{% endif %}</dt>
                             <dd class="mb-0">{{ sample.source }}</dd>
                             {% endif %}
+                            {% if sample.api %}
+                            <dt class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem; letter-spacing:.04em;">API</dt>
+                            <dd class="mb-0">{{ sample.api }}</dd>
+                            {% endif %}
                             {% if sample.lot_number %}
                             <dt class="text-muted small fw-semibold text-uppercase" style="font-size:.7rem; letter-spacing:.04em;">Lot Number</dt>
                             <dd class="mb-0">{{ sample.lot_number }}</dd>

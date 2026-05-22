@@ -74,6 +74,10 @@
                             <div class="form-text">Hold <kbd>Ctrl</kbd> (or <kbd>⌘ Cmd</kbd> on Mac) to select multiple APIs.</div>
                         </div>
                         <div class="col-md-4">
+                            {{ form.api.label(class="form-label fw-semibold") }}
+                            {{ form.api(class="form-control") }}
+                        </div>
+                        <div class="col-md-4">
                             {{ form.alcohol_type.label(class="form-label fw-semibold") }}
                             {{ form.alcohol_type(class="form-select") }}
                         </div>

@@ -811,10 +811,16 @@ def pharma_report():
     quarter = request.args.get('quarter', type=int, default=0)  # 0 = all
     month = request.args.get('month', type=int, default=0)       # 0 = all (Feature 8)
     status_filter = request.args.get('status', '')
+<<<<<<< HEAD
     date_reported_from = request.args.get('date_reported_from', '')  # Feature 8
     date_reported_to = request.args.get('date_reported_to', '')      # Feature 8
     oos_filter = request.args.get('oos', '')                          # Feature 4
     search = request.args.get('search', '').strip()
+=======
+    formulation_filter = request.args.get('formulation_type', '').strip()
+    api_filter = request.args.get('api', '').strip()
+    source_filter = request.args.get('source', '').strip()
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     q = Sample.query.filter(
         Sample.sample_type.in_([Branch.PHARMACEUTICAL, Branch.PHARMACEUTICAL_NR]),
@@ -829,6 +835,7 @@ def pharma_report():
         except ValueError:
             pass
 
+<<<<<<< HEAD
     # Date Reported filter – applies to certified_at; uncertified always pass through
     if date_reported_from:
         try:
@@ -870,6 +877,16 @@ def pharma_report():
             Sample.lab_number.ilike(pattern),
             Sample.sample_name.ilike(pattern),
         ))
+=======
+    if formulation_filter:
+        q = q.filter(Sample.formulation_type.ilike(f'%{formulation_filter}%'))
+
+    if api_filter:
+        q = q.filter(Sample.api.ilike(f'%{api_filter}%'))
+
+    if source_filter:
+        q = q.filter(Sample.source.ilike(f'%{source_filter}%'))
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -926,10 +943,16 @@ def pharma_report():
         quarter=quarter,
         month=month,
         status_filter=status_filter,
+<<<<<<< HEAD
         date_reported_from=date_reported_from,
         date_reported_to=date_reported_to,
         oos_filter=oos_filter,
         search=search,
+=======
+        formulation_filter=formulation_filter,
+        api_filter=api_filter,
+        source_filter=source_filter,
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         available_years=available_years,
         total=total,
         certified=certified,
@@ -957,12 +980,27 @@ def pharma_report_download():
     year = request.args.get('year', type=int,
                             default=_current_fiscal_year())
     quarter = request.args.get('quarter', type=int, default=0)
+<<<<<<< HEAD
     month = request.args.get('month', type=int, default=0)
+=======
+    formulation_filter = request.args.get('formulation_type', '').strip()
+    api_filter = request.args.get('api', '').strip()
+    source_filter = request.args.get('source', '').strip()
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     q = Sample.query.filter(
         Sample.sample_type.in_([Branch.PHARMACEUTICAL, Branch.PHARMACEUTICAL_NR]),
     )
     q = _apply_certified_quarter_filter(q, year, quarter, month)
+
+    if formulation_filter:
+        q = q.filter(Sample.formulation_type.ilike(f'%{formulation_filter}%'))
+
+    if api_filter:
+        q = q.filter(Sample.api.ilike(f'%{api_filter}%'))
+
+    if source_filter:
+        q = q.filter(Sample.source.ilike(f'%{source_filter}%'))
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -988,7 +1026,11 @@ def pharma_report_download():
             s.sample_name,
             s.sample_type.value if s.sample_type else '',
             s.formulation_type or '',
+<<<<<<< HEAD
             s.active_ingredient or '',
+=======
+            s.api or '',
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
             s.status.value if s.status else '',
             s.date_received.isoformat() if s.date_received else '',
             s.date_registered.strftime('%Y-%m-%d') if s.date_registered else '',
@@ -1026,9 +1068,14 @@ def milk_report():
     quarter = request.args.get('quarter', type=int, default=0)  # 0 = all
     month = request.args.get('month', type=int, default=0)
     status_filter = request.args.get('status', '')
+<<<<<<< HEAD
     date_reported_from = request.args.get('date_reported_from', '')
     date_reported_to = request.args.get('date_reported_to', '')
     search = request.args.get('search', '').strip()
+=======
+    parish_filter = request.args.get('parish', '').strip()
+    milk_type_filter = request.args.get('milk_type', '').strip()
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_MILK,
@@ -1042,6 +1089,7 @@ def milk_report():
         except ValueError:
             pass
 
+<<<<<<< HEAD
     if date_reported_from:
         try:
             from datetime import date as _date
@@ -1070,6 +1118,13 @@ def milk_report():
             Sample.lab_number.ilike(pattern),
             Sample.sample_name.ilike(pattern),
         ))
+=======
+    if parish_filter:
+        q = q.filter(Sample.parish.ilike(f'%{parish_filter}%'))
+
+    if milk_type_filter in ('R', 'P'):
+        q = q.filter(Sample.milk_type == milk_type_filter)
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -1125,9 +1180,14 @@ def milk_report():
         quarter=quarter,
         month=month,
         status_filter=status_filter,
+<<<<<<< HEAD
         date_reported_from=date_reported_from,
         date_reported_to=date_reported_to,
         search=search,
+=======
+        parish_filter=parish_filter,
+        milk_type_filter=milk_type_filter,
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         available_years=available_years,
         total=total,
         certified=certified,
@@ -1155,11 +1215,19 @@ def milk_report_download():
     year = request.args.get('year', type=int,
                             default=_current_fiscal_year())
     quarter = request.args.get('quarter', type=int, default=0)
+    parish_filter = request.args.get('parish', '').strip()
+    milk_type_filter = request.args.get('milk_type', '').strip()
 
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_MILK,
     )
     q = _apply_certified_quarter_filter(q, year, quarter)
+
+    if parish_filter:
+        q = q.filter(Sample.parish.ilike(f'%{parish_filter}%'))
+
+    if milk_type_filter in ('R', 'P'):
+        q = q.filter(Sample.milk_type == milk_type_filter)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -1225,9 +1293,15 @@ def toxicology_report():
     quarter = request.args.get('quarter', type=int, default=0)
     month = request.args.get('month', type=int, default=0)
     status_filter = request.args.get('status', '')
+<<<<<<< HEAD
     date_reported_from = request.args.get('date_reported_from', '')
     date_reported_to = request.args.get('date_reported_to', '')
     search = request.args.get('search', '').strip()
+=======
+    hospital_filter = request.args.get('hospital', '').strip()
+    sample_type_filter = request.args.get('sample_type', '').strip()
+    patient_name_filter = request.args.get('patient_name', '').strip()
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     q = Sample.query.filter(
         Sample.sample_type == Branch.TOXICOLOGY,
@@ -1241,6 +1315,7 @@ def toxicology_report():
         except ValueError:
             pass
 
+<<<<<<< HEAD
     if date_reported_from:
         try:
             from datetime import date as _date
@@ -1270,6 +1345,18 @@ def toxicology_report():
             Sample.sample_name.ilike(pattern),
             Sample.patient_name.ilike(pattern),
         ))
+=======
+    if hospital_filter:
+        q = q.filter(Sample.source.ilike(f'%{hospital_filter}%'))
+
+    if sample_type_filter:
+        q = q.filter(
+            Sample.toxicology_sample_type_name.ilike(f'%{sample_type_filter}%')
+        )
+
+    if patient_name_filter:
+        q = q.filter(Sample.patient_name.ilike(f'%{patient_name_filter}%'))
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -1323,9 +1410,15 @@ def toxicology_report():
         quarter=quarter,
         month=month,
         status_filter=status_filter,
+<<<<<<< HEAD
         date_reported_from=date_reported_from,
         date_reported_to=date_reported_to,
         search=search,
+=======
+        hospital_filter=hospital_filter,
+        sample_type_filter=sample_type_filter,
+        patient_name_filter=patient_name_filter,
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         available_years=available_years,
         total=total,
         certified=certified,
@@ -1353,11 +1446,25 @@ def toxicology_report_download():
     year = request.args.get('year', type=int,
                             default=_current_fiscal_year())
     quarter = request.args.get('quarter', type=int, default=0)
+    hospital_filter = request.args.get('hospital', '').strip()
+    sample_type_filter = request.args.get('sample_type', '').strip()
+    patient_name_filter = request.args.get('patient_name', '').strip()
 
     q = Sample.query.filter(
         Sample.sample_type == Branch.TOXICOLOGY,
     )
     q = _apply_certified_quarter_filter(q, year, quarter)
+
+    if hospital_filter:
+        q = q.filter(Sample.source.ilike(f'%{hospital_filter}%'))
+
+    if sample_type_filter:
+        q = q.filter(
+            Sample.toxicology_sample_type_name.ilike(f'%{sample_type_filter}%')
+        )
+
+    if patient_name_filter:
+        q = q.filter(Sample.patient_name.ilike(f'%{patient_name_filter}%'))
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -1417,9 +1524,14 @@ def alcohol_report():
     quarter = request.args.get('quarter', type=int, default=0)
     month = request.args.get('month', type=int, default=0)
     status_filter = request.args.get('status', '')
+<<<<<<< HEAD
     date_reported_from = request.args.get('date_reported_from', '')
     date_reported_to = request.args.get('date_reported_to', '')
     search = request.args.get('search', '').strip()
+=======
+    sample_name_filter = request.args.get('sample_name', '').strip()
+    alcohol_type_filter = request.args.get('alcohol_type', '').strip()
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_ALCOHOL,
@@ -1433,6 +1545,7 @@ def alcohol_report():
         except ValueError:
             pass
 
+<<<<<<< HEAD
     if date_reported_from:
         try:
             from datetime import date as _date
@@ -1461,6 +1574,13 @@ def alcohol_report():
             Sample.lab_number.ilike(pattern),
             Sample.sample_name.ilike(pattern),
         ))
+=======
+    if sample_name_filter:
+        q = q.filter(Sample.sample_name.ilike(f'%{sample_name_filter}%'))
+
+    if alcohol_type_filter:
+        q = q.filter(Sample.alcohol_type.ilike(f'%{alcohol_type_filter}%'))
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -1534,9 +1654,14 @@ def alcohol_report():
         quarter=quarter,
         month=month,
         status_filter=status_filter,
+<<<<<<< HEAD
         date_reported_from=date_reported_from,
         date_reported_to=date_reported_to,
         search=search,
+=======
+        sample_name_filter=sample_name_filter,
+        alcohol_type_filter=alcohol_type_filter,
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
         available_years=available_years,
         total=total,
         certified=certified,
@@ -1565,11 +1690,19 @@ def alcohol_report_download():
     year = request.args.get('year', type=int,
                             default=_current_fiscal_year())
     quarter = request.args.get('quarter', type=int, default=0)
+    sample_name_filter = request.args.get('sample_name', '').strip()
+    alcohol_type_filter = request.args.get('alcohol_type', '').strip()
 
     q = Sample.query.filter(
         Sample.sample_type == Branch.FOOD_ALCOHOL,
     )
     q = _apply_certified_quarter_filter(q, year, quarter)
+
+    if sample_name_filter:
+        q = q.filter(Sample.sample_name.ilike(f'%{sample_name_filter}%'))
+
+    if alcohol_type_filter:
+        q = q.filter(Sample.alcohol_type.ilike(f'%{alcohol_type_filter}%'))
 
     samples = q.order_by(Sample.date_registered.desc()).all()
 
@@ -2179,18 +2312,21 @@ def decide_backdate(req_id):
             # Assignment-level fields
             assignment_fields = {
                 'assigned_date', 'expected_completion',
-                'report_submitted_at', 'test_date',
+                'report_submitted_at', 'test_date', 'reviewed_at',
             }
 
             # Sample-level DateTime fields (need to preserve the time)
             sample_datetime_fields = {
-                'date_registered', 'certificate_prepared_at', 'certified_at',
+                'date_registered', 'deputy_reviewed_at',
+                'certificate_prepared_at', 'certified_at',
             }
 
             if bdr.field_name in assignment_fields and bdr.assignment_id:
                 asgn = db.session.get(SampleAssignment, bdr.assignment_id)
                 if asgn:
-                    if bdr.field_name in ('assigned_date', 'report_submitted_at'):
+                    if bdr.field_name in (
+                        'assigned_date', 'report_submitted_at', 'reviewed_at',
+                    ):
                         # DateTime columns – preserve the time
                         old_val = getattr(asgn, bdr.field_name, None)
                         if old_val and hasattr(old_val, 'time'):

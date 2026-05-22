@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <h2><i class="bi bi-cup"></i> Alcohol Report</h2>
-    <a href="{{ url_for('main.alcohol_report_download', year=year, quarter=quarter) }}"
+    <a href="{{ url_for('main.alcohol_report_download', year=year, quarter=quarter, sample_name=sample_name_filter, alcohol_type=alcohol_type_filter) }}"
        class="btn btn-outline-primary btn-sm">
         <i class="bi bi-download me-1"></i>Download CSV
     </a>
@@ -51,6 +51,7 @@
                 </select>
             </div>
             <div class="col-sm-6 col-md-2">
+<<<<<<< HEAD
                 <label class="form-label small fw-semibold mb-1">Date Reported From</label>
                 <input type="date" name="date_reported_from" class="form-control form-control-sm"
                        value="{{ date_reported_from }}">
@@ -68,6 +69,17 @@
             <div class="col-sm-auto">
                 <button type="submit" class="btn btn-primary btn-sm">Filter</button>
                 <a href="{{ url_for('main.alcohol_report', year=year) }}" class="btn btn-outline-secondary btn-sm">Clear</a>
+=======
+                <label class="form-label small fw-semibold mb-1">Sample Name</label>
+                <input type="text" name="sample_name" value="{{ sample_name_filter }}" class="form-control form-control-sm" placeholder="Sample name">
+            </div>
+            <div class="col-sm-6 col-md-2">
+                <label class="form-label small fw-semibold mb-1">Alcohol Type</label>
+                <input type="text" name="alcohol_type" value="{{ alcohol_type_filter }}" class="form-control form-control-sm" placeholder="Alcohol type">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Search</button>
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
             </div>
         </form>
     </div>

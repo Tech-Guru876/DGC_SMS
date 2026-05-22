@@ -75,7 +75,7 @@
 <script>
 // Show/hide assignment dropdown based on field selection
 document.getElementById('field_name').addEventListener('change', function() {
-    var assignmentFields = ['assigned_date', 'expected_completion', 'report_submitted_at', 'test_date'];
+    var assignmentFields = ['assigned_date', 'expected_completion', 'report_submitted_at', 'test_date', 'reviewed_at'];
     var group = document.getElementById('assignment-group');
     if (assignmentFields.includes(this.value)) {
         group.style.display = 'block';

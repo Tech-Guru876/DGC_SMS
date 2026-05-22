@@ -442,7 +442,11 @@ class Sample(db.Model):
 
     # Pharmaceutical specific
     formulation_type = db.Column(db.String(100), nullable=True)
+<<<<<<< HEAD
     active_ingredient = db.Column(db.String(255), nullable=True)  # API dropdown (Feature 7)
+=======
+    api = db.Column(db.String(255), nullable=True)
+>>>>>>> 38d0d24 (feat: Add API field to pharmaceutical samples and update related forms and reports)
 
     # Food (Alcohol) specific
     alcohol_type = db.Column(db.String(100), nullable=True)
