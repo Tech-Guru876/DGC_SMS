@@ -117,6 +117,8 @@ MIGRATIONS = [
     ('samples', 'reissued_by', 'INTEGER REFERENCES users(id)'),
     # return-to-analyst comment (ad-hoc return from sample detail page)
     ('sample_assignments', 'return_to_analyst_comments', 'TEXT'),
+    # Feature 11 – branch-specific dropdown entries (test types per laboratory)
+    ('dropdown_configs', 'branch', 'VARCHAR(100)'),
 ]
 
 NEW_TABLES = [
@@ -344,11 +346,12 @@ NEW_TABLES = [
         '  category VARCHAR(100) NOT NULL,'
         '  value VARCHAR(255) NOT NULL,'
         '  label VARCHAR(255),'
+        '  branch VARCHAR(100),'
         '  sort_order INTEGER NOT NULL DEFAULT 0,'
         '  is_active BOOLEAN NOT NULL DEFAULT 1,'
         '  created_by INTEGER REFERENCES users(id),'
         '  created_at DATETIME,'
-        '  UNIQUE (category, value)'
+        '  UNIQUE (category, value, branch)'
         ')',
     ),
 ]

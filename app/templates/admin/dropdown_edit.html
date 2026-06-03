@@ -30,6 +30,10 @@
                         {% endfor %}
                     </div>
                     <div class="mb-3">
+                        {{ form.branch.label(class="form-label fw-semibold") }}
+                        {{ form.branch(class="form-select") }}
+                    </div>
+                    <div class="mb-3">
                         {{ form.label.label(class="form-label fw-semibold") }}
                         {{ form.label(class="form-control") }}
                     </div>
