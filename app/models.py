@@ -1473,12 +1473,12 @@ class DropdownConfig(db.Model):
         """Return WTForms-style (value, label) choices for a given category, sorted A-Z.
 
         If *branch* is provided, only entries matching that branch (or entries
-        with no branch set) are returned.
+        with no branch set, i.e. NULL) are returned.
         """
         q = DropdownConfig.query.filter_by(category=category, is_active=True)
         if branch:
             q = q.filter(
-                db.or_(DropdownConfig.branch == branch, DropdownConfig.branch.is_(None), DropdownConfig.branch == '')
+                db.or_(DropdownConfig.branch == branch, DropdownConfig.branch.is_(None))
             )
         rows = q.order_by(db.func.lower(DropdownConfig.label), DropdownConfig.label).all()
         return [(r.value, r.label or r.value) for r in rows]
