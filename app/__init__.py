@@ -30,6 +30,7 @@ def _verify_schema_compatibility(app):
         'custom_roles': {'name'},
         'custom_role_permissions': {'custom_role_id', 'permission'},
         'user_custom_roles': {'user_id', 'custom_role_id'},
+        'dropdown_configs': {'category', 'value'},
     }
 
     engine = db.engine
@@ -114,13 +115,11 @@ def create_app(config_name=None):
     import os
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-    # Ensure all database tables exist
-    with app.app_context():
-        db.create_all()
-        if config_name != 'testing':
-            _verify_schema_compatibility(app)
-
-    # Register blueprints
+    # Register blueprints first so that all SQLAlchemy models are imported and
+    # registered in db.metadata before db.create_all() is called.  Previously
+    # create_all() ran here (before blueprint registration) with an empty
+    # metadata, meaning no tables were ever created – including dropdown_configs
+    # (Feature 11), which caused a 500 on any request to /admin/dropdowns/*.
     from app.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/auth')
 
@@ -129,6 +128,13 @@ def create_app(config_name=None):
 
     from app.main import main_bp
     app.register_blueprint(main_bp)
+
+    # Now that all models are in db.metadata, create any missing tables and
+    # verify the schema is up-to-date for the running application version.
+    with app.app_context():
+        db.create_all()
+        if config_name != 'testing':
+            _verify_schema_compatibility(app)
 
     # Make enums available in all templates
     from app.models import Role, Branch, Permission
