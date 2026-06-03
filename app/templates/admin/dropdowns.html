@@ -46,6 +46,10 @@
                     <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                 </div>
+                <div class="col-md-2">
+                    {{ form.branch.label(class="form-label fw-semibold") }}
+                    {{ form.branch(class="form-select") }}
+                </div>
                 <div class="col-md-3">
                     {{ form.label.label(class="form-label fw-semibold") }}
                     {{ form.label(class="form-control", placeholder="Display label (optional)") }}
@@ -94,7 +98,11 @@
                     <div class="invalid-feedback d-block">{{ error }}</div>
                     {% endfor %}
                 </div>
-                <div class="col-md-7">
+                <div class="col-md-2">
+                    {{ bulk_form.branch.label(class="form-label fw-semibold") }}
+                    {{ bulk_form.branch(class="form-select") }}
+                </div>
+                <div class="col-md-5">
                     {{ bulk_form.bulk_values.label(class="form-label fw-semibold") }}
                     {{ bulk_form.bulk_values(class="form-control font-monospace", rows=6,
                         placeholder="Paracetamol\nAspirin\nMetformin Hydrochloride | Metformin HCl") }}
@@ -127,6 +135,7 @@
                     <th>Category</th>
                     <th>Value</th>
                     <th>Label</th>
+                    <th>Branch</th>
                     <th>Sort</th>
                     <th>Active</th>
                     <th>Actions</th>
@@ -139,6 +148,7 @@
                     <td><span class="badge bg-primary">{{ item.category }}</span></td>
                     <td><code>{{ item.value }}</code></td>
                     <td>{{ item.label or '—' }}</td>
+                    <td>{{ item.branch or 'All' }}</td>
                     <td>{{ item.sort_order }}</td>
                     <td>
                         {% if item.is_active %}
@@ -164,7 +174,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">
+                    <td colspan="8" class="text-center text-muted py-4">
                         No dropdown entries found.
                         {% if category_filter %}Use the form above to add entries for this category.{% endif %}
                     </td>

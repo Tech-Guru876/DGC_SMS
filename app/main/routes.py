@@ -3473,8 +3473,9 @@ def admin_dropdown_add():
     from app.forms import DropdownConfigForm
     form = DropdownConfigForm()
     if form.validate_on_submit():
+        branch_val = form.branch.data or None
         existing = DropdownConfig.query.filter_by(
-            category=form.category.data, value=form.value.data
+            category=form.category.data, value=form.value.data, branch=branch_val
         ).first()
         if existing:
             flash(f'Entry "{form.value.data}" already exists in category "{form.category.data}".', 'warning')
@@ -3483,6 +3484,7 @@ def admin_dropdown_add():
                 category=form.category.data,
                 value=form.value.data,
                 label=form.label.data or form.value.data,
+                branch=branch_val,
                 sort_order=form.sort_order.data or 0,
                 is_active=form.is_active.data,
                 created_by=current_user.id,
@@ -3509,6 +3511,7 @@ def admin_dropdown_bulk_add():
     form = DropdownBulkAddForm()
     if form.validate_on_submit():
         category = form.category.data
+        branch_val = form.branch.data or None
         is_active = form.is_active.data
         lines = [l.strip() for l in form.bulk_values.data.splitlines() if l.strip()]
         added = 0
@@ -3524,7 +3527,7 @@ def admin_dropdown_bulk_add():
             if not value:
                 continue
             existing = DropdownConfig.query.filter_by(
-                category=category, value=value
+                category=category, value=value, branch=branch_val
             ).first()
             if existing:
                 skipped += 1
@@ -3533,6 +3536,7 @@ def admin_dropdown_bulk_add():
                     category=category,
                     value=value,
                     label=label,
+                    branch=branch_val,
                     sort_order=0,
                     is_active=is_active,
                     created_by=current_user.id,
@@ -3570,6 +3574,7 @@ def admin_dropdown_edit(item_id):
         item.category = form.category.data
         item.value = form.value.data
         item.label = form.label.data or form.value.data
+        item.branch = form.branch.data or None
         item.sort_order = form.sort_order.data or 0
         item.is_active = form.is_active.data
         db.session.commit()

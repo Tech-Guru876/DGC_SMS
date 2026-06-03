@@ -1245,6 +1245,11 @@ class DropdownConfigForm(FlaskForm):
     )
     value = StringField('Value', validators=[DataRequired(), Length(max=255)])
     label = StringField('Display Label', validators=[Optional(), Length(max=255)])
+    branch = SelectField(
+        'Branch (Laboratory)',
+        choices=[('', '-- All Branches --')] + [(b.value, b.value) for b in Branch],
+        validators=[Optional()],
+    )
     sort_order = IntegerField('Sort Order', validators=[Optional()], default=0)
     is_active = BooleanField('Active', default=True)
     submit = SubmitField('Save')
@@ -1256,6 +1261,11 @@ class DropdownBulkAddForm(FlaskForm):
         'Category',
         choices=DROPDOWN_CATEGORY_CHOICES,
         validators=[DataRequired()],
+    )
+    branch = SelectField(
+        'Branch (Laboratory)',
+        choices=[('', '-- All Branches --')] + [(b.value, b.value) for b in Branch],
+        validators=[Optional()],
     )
     bulk_values = TextAreaField(
         'Values (one per line)',

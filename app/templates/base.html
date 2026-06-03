@@ -674,14 +674,24 @@
                     </a>
                 </li>
                 {% endif %}
-                {% elif current_user.has_permission(Permission.MANAGE_SETTINGS) %}
+                {% elif current_user.has_permission(Permission.MANAGE_SETTINGS) or current_user.has_permission(Permission.MANAGE_DROPDOWNS) %}
                 <li><div class="sidebar-section-label">Admin</div></li>
+                {% if current_user.has_permission(Permission.MANAGE_SETTINGS) %}
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'main.settings' %}active{% endif %}"
                        href="{{ url_for('main.settings') }}">
                         <i class="bi bi-gear"></i> Settings
                     </a>
                 </li>
+                {% endif %}
+                {% if current_user.has_permission(Permission.MANAGE_DROPDOWNS) %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'main.admin_dropdowns' %}active{% endif %}"
+                       href="{{ url_for('main.admin_dropdowns') }}">
+                        <i class="bi bi-list-ul"></i> Dropdown Config
+                    </a>
+                </li>
+                {% endif %}
                 {% endif %}
             </ul>
         </nav>

@@ -1458,21 +1458,29 @@ class DropdownConfig(db.Model):
     category = db.Column(db.String(100), nullable=False, index=True)
     value = db.Column(db.String(255), nullable=False)
     label = db.Column(db.String(255), nullable=True)
+    branch = db.Column(db.String(100), nullable=True, index=True)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=jamaica_now)
 
     __table_args__ = (
-        db.UniqueConstraint('category', 'value', name='uq_dropdown_cat_value'),
+        db.UniqueConstraint('category', 'value', 'branch', name='uq_dropdown_cat_value_branch'),
     )
 
     @staticmethod
-    def choices_for(category):
-        """Return WTForms-style (value, label) choices for a given category, sorted A-Z."""
-        rows = DropdownConfig.query.filter_by(
-            category=category, is_active=True
-        ).order_by(db.func.lower(DropdownConfig.label), DropdownConfig.label).all()
+    def choices_for(category, branch=None):
+        """Return WTForms-style (value, label) choices for a given category, sorted A-Z.
+
+        If *branch* is provided, only entries matching that branch (or entries
+        with no branch set, i.e. NULL) are returned.
+        """
+        q = DropdownConfig.query.filter_by(category=category, is_active=True)
+        if branch:
+            q = q.filter(
+                db.or_(DropdownConfig.branch == branch, DropdownConfig.branch.is_(None))
+            )
+        rows = q.order_by(db.func.lower(DropdownConfig.label), DropdownConfig.label).all()
         return [(r.value, r.label or r.value) for r in rows]
 
     def __repr__(self):
