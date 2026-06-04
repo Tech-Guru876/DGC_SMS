@@ -2432,6 +2432,28 @@ def test_dashboard_filter_by_alcohol_type(app, client):
     assert b'Alc B' not in resp.data
 
 
+def test_dashboard_filter_by_manufacturer(app, client):
+    """Dashboard should filter samples by manufacturer."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s1 = Sample(lab_number='PH/001', sample_name='Drug A', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, manufacturer='PharmaCorp',
+                    uploaded_by=officer_id)
+        s2 = Sample(lab_number='PH/002', sample_name='Drug B', sample_type=Branch.PHARMACEUTICAL,
+                    date_received=date.today(), date_registered=datetime.utcnow(),
+                    status=SampleStatus.REGISTERED, manufacturer='MediLab',
+                    uploaded_by=officer_id)
+        db.session.add_all([s1, s2])
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/?manufacturer=PharmaCorp')
+    assert resp.status_code == 200
+    assert b'Drug A' in resp.data
+    assert b'Drug B' not in resp.data
+
+
 def test_dashboard_filter_by_sample_name(app, client):
     """Dashboard should filter by dedicated sample_name advanced filter."""
     officer_id, *_ = _setup_users(app)

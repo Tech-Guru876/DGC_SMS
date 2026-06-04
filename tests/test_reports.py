@@ -33,6 +33,7 @@ def _register_pharma_sample(
     api=None,
     source=None,
     description=None,
+    manufacturer=None,
 ):
     """Register a pharmaceutical sample directly in the DB."""
     with app.app_context():
@@ -50,6 +51,7 @@ def _register_pharma_sample(
             api=api,
             source=source,
             description=description,
+            manufacturer=manufacturer,
         )
         if certified:
             s.certified_at = datetime(2026, 2, 15, tzinfo=timezone.utc)
@@ -249,6 +251,45 @@ def test_pharma_report_filter_formulation_api_source(app, client):
     assert resp.status_code == 200
     assert b'PH-FLT01' in resp.data
     assert b'PH-FLT02' not in resp.data
+
+
+def test_pharma_report_filter_manufacturer(app, client):
+    _setup_admin(app)
+    _register_pharma_sample(
+        app,
+        'PH-MFR01',
+        name='Drug Alpha',
+        manufacturer='PharmaCorp',
+    )
+    _register_pharma_sample(
+        app,
+        'PH-MFR02',
+        name='Drug Beta',
+        manufacturer='MediLab',
+    )
+    _login(client, 'admin')
+
+    resp = client.get('/reports/pharma?year=2026&manufacturer=PharmaCorp')
+    assert resp.status_code == 200
+    assert b'PH-MFR01' in resp.data
+    assert b'PH-MFR02' not in resp.data
+
+
+def test_pharma_report_download_csv_manufacturer_column(app, client):
+    _setup_admin(app)
+    _register_pharma_sample(
+        app,
+        'PH-MFC01',
+        name='Drug Gamma',
+        manufacturer='TestMfr',
+    )
+    _login(client, 'admin')
+
+    resp = client.get('/reports/pharma/download?year=2026')
+    assert resp.status_code == 200
+    assert 'text/csv' in resp.content_type
+    assert b'Manufacturer' in resp.data
+    assert b'TestMfr' in resp.data
 
 
 # ---------------------------------------------------------------------------
