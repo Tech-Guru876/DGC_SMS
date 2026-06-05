@@ -625,7 +625,7 @@ def edit(sample_id):
         sample.formulation_type = form.formulation_type.data
         sample.manufacturer = form.manufacturer.data or None
         if isinstance(form.active_ingredient, _SelectMultipleField):
-            sample.api = _serialize_apis(form.active_ingredient.data) or form.api.data or None
+            sample.api = _serialize_apis(form.active_ingredient.data)
         else:
             sample.api = form.api.data or None
         sample.alcohol_type = form.alcohol_type.data if form.alcohol_type.data else None
