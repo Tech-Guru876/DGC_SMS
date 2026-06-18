@@ -569,6 +569,7 @@ def detail(sample_id):
         review_pagination=review_pagination,
         pending_backdate=pending_backdate,
         can_submit_to_deputy=can_submit_to_deputy,
+        SampleComment=SampleComment,
     )
 
 

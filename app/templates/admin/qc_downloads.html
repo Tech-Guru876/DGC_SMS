@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Quality Control Downloads - DGC SMS{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <h2><i class="bi bi-download me-2"></i>Quality Control Data Downloads</h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <p class="text-muted mb-4">
+            Download system data for quality control, monitoring, compliance, and audit purposes.
+            All downloads are recorded in the audit log.
+        </p>
+
+        <form method="POST" action="{{ url_for('main.qc_downloads_export') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="row g-3">
+                <!-- Data Type Selection -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Select Data Type <span class="text-danger">*</span></label>
+                    <div class="list-group">
+                        <label class="list-group-item d-flex gap-2">
+                            <input class="form-check-input flex-shrink-0" type="radio"
+                                   name="data_type" value="user_permissions" required>
+                            <span>
+                                <strong>User Permissions &amp; Roles</strong>
+                                <small class="d-block text-muted">All users with their roles, branches, and permissions</small>
+                            </span>
+                        </label>
+                        <label class="list-group-item d-flex gap-2">
+                            <input class="form-check-input flex-shrink-0" type="radio"
+                                   name="data_type" value="workflow_logs">
+                            <span>
+                                <strong>Workflow / Action Logs</strong>
+                                <small class="d-block text-muted">Full audit log with workflow stages, actions, and comments</small>
+                            </span>
+                        </label>
+                        <label class="list-group-item d-flex gap-2">
+                            <input class="form-check-input flex-shrink-0" type="radio"
+                                   name="data_type" value="login_activity">
+                            <span>
+                                <strong>Login / Logout Activity</strong>
+                                <small class="d-block text-muted">User login activity, failed attempts, and account lockouts</small>
+                            </span>
+                        </label>
+                        <label class="list-group-item d-flex gap-2">
+                            <input class="form-check-input flex-shrink-0" type="radio"
+                                   name="data_type" value="report_activity">
+                            <span>
+                                <strong>Report Activity Logs</strong>
+                                <small class="d-block text-muted">Sample/report lifecycle events and status changes</small>
+                            </span>
+                        </label>
+                        <label class="list-group-item d-flex gap-2">
+                            <input class="form-check-input flex-shrink-0" type="radio"
+                                   name="data_type" value="export_activity">
+                            <span>
+                                <strong>Export / Download Activity</strong>
+                                <small class="d-block text-muted">Records of all data exports and file downloads</small>
+                            </span>
+                        </label>
+                        <label class="list-group-item d-flex gap-2">
+                            <input class="form-check-input flex-shrink-0" type="radio"
+                                   name="data_type" value="error_logs">
+                            <span>
+                                <strong>System Error Logs</strong>
+                                <small class="d-block text-muted">Application error and exception logs</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Filters</label>
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label small">Date Range</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <input type="date" name="date_from" class="form-control form-control-sm"
+                                               placeholder="From">
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="date" name="date_to" class="form-control form-control-sm"
+                                               placeholder="To">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small">Export Format</label>
+                                <select name="export_format" class="form-select form-select-sm">
+                                    <option value="csv">CSV (.csv)</option>
+                                </select>
+                                <small class="text-muted">Additional formats (Excel, PDF, JSON) coming soon.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3 small">
+                        <i class="bi bi-shield-lock me-1"></i>
+                        <strong>Security Notice:</strong> Sensitive information (passwords, tokens) is excluded
+                        from all exports. Every download is permanently recorded in the audit log.
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 text-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-download me-1"></i>Download Data
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

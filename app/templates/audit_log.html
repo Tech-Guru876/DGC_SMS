@@ -4,61 +4,108 @@
 {% block content %}
 <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <h2><i class="bi bi-journal-text"></i> Audit Log</h2>
+    {% if current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN, Role.HOD) or current_user.has_permission(Permission.AUDIT_LOG_EXPORT) %}
+    <a href="{{ url_for('main.audit_log_export_pdf', action=q_action, entity=q_entity, user=q_user, date_from=q_date_from, date_to=q_date_to, role=q_role, report_type=q_report_type, action_type=q_action_type, stage=q_stage, keyword=q_keyword) }}"
+       class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+    </a>
+    {% endif %}
 </div>
 
-<!-- Filters -->
+<!-- Enhanced Filters -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="GET" action="{{ url_for('main.audit_log') }}" class="row g-2 align-items-end">
-            <div class="col-auto">
-                <label class="form-label mb-0 small">Action</label>
-                <input type="text" name="action" value="{{ q_action }}"
-                       class="form-control form-control-sm" placeholder="e.g. SAMPLE_DELETED" style="width:180px">
+        <form method="GET" action="{{ url_for('main.audit_log') }}">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">Date From</label>
+                    <input type="date" name="date_from" value="{{ q_date_from }}"
+                           class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">Date To</label>
+                    <input type="date" name="date_to" value="{{ q_date_to }}"
+                           class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">User</label>
+                    <input type="text" name="user" value="{{ q_user }}"
+                           class="form-control form-control-sm" placeholder="Name or username">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">Role</label>
+                    <select name="role" class="form-select form-select-sm">
+                        <option value="">All Roles</option>
+                        {% for r in roles_list %}
+                        <option value="{{ r }}" {% if q_role == r %}selected{% endif %}>{{ r }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">Report Type</label>
+                    <select name="report_type" class="form-select form-select-sm">
+                        <option value="">All Types</option>
+                        {% for rt in report_types_list %}
+                        <option value="{{ rt }}" {% if q_report_type == rt %}selected{% endif %}>{{ rt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">Action</label>
+                    <input type="text" name="action" value="{{ q_action }}"
+                           class="form-control form-control-sm" placeholder="e.g. RETURNED">
+                </div>
             </div>
-            <div class="col-auto">
-                <label class="form-label mb-0 small">Entity / Lab No.</label>
-                <input type="text" name="entity" value="{{ q_entity }}"
-                       class="form-control form-control-sm" placeholder="Entity type or label" style="width:180px">
-            </div>
-            <div class="col-auto">
-                <label class="form-label mb-0 small">Performed By</label>
-                <input type="text" name="user" value="{{ q_user }}"
-                       class="form-control form-control-sm" placeholder="Name or username" style="width:180px">
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-sm btn-primary">
-                    <i class="bi bi-search"></i> Filter
-                </button>
-                {% if q_action or q_entity or q_user %}
-                <a href="{{ url_for('main.audit_log') }}" class="btn btn-sm btn-outline-secondary ms-1">
-                    <i class="bi bi-x-lg"></i> Clear
-                </a>
-                {% endif %}
+            <div class="row g-2 align-items-end mt-1">
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">Workflow Stage</label>
+                    <select name="stage" class="form-select form-select-sm">
+                        <option value="">All Stages</option>
+                        {% for s in stages_list %}
+                        <option value="{{ s }}" {% if q_stage == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-0 small">Entity / Lab No.</label>
+                    <input type="text" name="entity" value="{{ q_entity }}"
+                           class="form-control form-control-sm" placeholder="Entity or label">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label mb-0 small">Keyword Search</label>
+                    <input type="text" name="keyword" value="{{ q_keyword }}"
+                           class="form-control form-control-sm" placeholder="Search descriptions, comments, details…">
+                </div>
+                <div class="col-md-4 d-flex gap-2 align-items-end">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-search me-1"></i>Filter
+                    </button>
+                    {% if q_action or q_entity or q_user or q_date_from or q_date_to or q_role or q_report_type or q_action_type or q_stage or q_keyword %}
+                    <a href="{{ url_for('main.audit_log') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-lg me-1"></i>Clear
+                    </a>
+                    {% endif %}
+                </div>
             </div>
         </form>
     </div>
 </div>
 
 <div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover table-sm mb-0">
-            <thead>
-                <tr>
-                    <th>Date / Time</th>
-                    <th>Action</th>
-                    <th>Entity Type</th>
-                    <th>Entity</th>
-                    <th>Performed By</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in entries %}
-                <tr>
-                    <td class="text-nowrap">
-                        {{ entry.performed_at.strftime('%d %b %Y %H:%M') if entry.performed_at else '—' }}
-                    </td>
-                    <td>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="small text-muted">
+            Showing {{ ((pagination.page - 1) * pagination.per_page) + 1 }}–{{ [pagination.page * pagination.per_page, pagination.total] | min }} of {{ pagination.total }} entries
+        </span>
+    </div>
+    <div class="card-body p-0">
+        {% for entry in entries %}
+        <div class="border-bottom p-3 {% if loop.last %}border-bottom-0{% endif %}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <small class="text-muted">
+                            <i class="bi bi-clock me-1"></i>{{ entry.performed_at.strftime('%d %b %Y, %I:%M %p') if entry.performed_at else '—' }}
+                        </small>
                         {% set action_upper = entry.action | upper %}
                         <span class="badge
                             {% if 'DELETE' in action_upper %}bg-danger
@@ -66,36 +113,59 @@
                             {% elif 'DENIED' in action_upper or 'RETURNED' in action_upper or 'REJECTED' in action_upper %}bg-warning text-dark
                             {% elif 'SUBMITTED' in action_upper or 'PREPARED' in action_upper %}bg-info text-dark
                             {% elif 'UPDATED' in action_upper or 'ASSIGNED' in action_upper %}bg-primary
-                            {% elif 'REQUESTED' in action_upper %}bg-secondary
+                            {% elif 'COMMENT' in action_upper %}bg-secondary
+                            {% elif 'DOWNLOAD' in action_upper or 'EXPORT' in action_upper %}bg-dark
                             {% else %}bg-secondary
-                            {% endif %}">
+                            {% endif %}" style="font-size:.7rem;">
                             {{ entry.action | replace('_', ' ') }}
                         </span>
-                    </td>
-                    <td>{{ entry.entity_type if entry.entity_type else '—' }}</td>
-                    <td>{{ entry.entity_label or (entry.entity_id | string if entry.entity_id else '—') }}</td>
-                    <td>{{ entry.performer.full_name if entry.performer else '—' }}</td>
-                    <td>
-                        {% if entry.details %}
-                        <button type="button" class="btn btn-outline-secondary btn-sm"
-                                data-bs-toggle="modal"
-                                data-bs-target="#detailModal{{ entry.id }}">
-                            <i class="bi bi-eye"></i> View
-                        </button>
-                        {% else %}
-                        <span class="text-muted">—</span>
+                        {% if entry.report_type %}
+                        <span class="badge bg-light text-dark border" style="font-size:.65rem;">{{ entry.report_type }}</span>
                         {% endif %}
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
-                        No audit log entries found.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </div>
+                    <!-- Human-readable description -->
+                    {% if entry.human_description %}
+                    <p class="mb-1" style="font-size:.9rem;">{{ entry.human_description }}</p>
+                    {% else %}
+                    <p class="mb-1" style="font-size:.9rem;">
+                        <strong>{{ entry.performer.full_name if entry.performer else '—' }}</strong>
+                        {{ entry.action | replace('_', ' ') | lower }}
+                        {% if entry.entity_label %}— {{ entry.entity_label }}{% endif %}
+                    </p>
+                    {% endif %}
+                    <!-- Meta row -->
+                    <div class="d-flex flex-wrap gap-3 text-muted" style="font-size:.75rem;">
+                        <span><i class="bi bi-person me-1"></i>{{ entry.performer.full_name if entry.performer else '—' }}</span>
+                        {% if entry.user_role %}
+                        <span><i class="bi bi-shield me-1"></i>{{ entry.user_role }}</span>
+                        {% endif %}
+                        {% if entry.entity_type %}
+                        <span><i class="bi bi-box me-1"></i>{{ entry.entity_type }}{% if entry.entity_label %}: {{ entry.entity_label }}{% endif %}</span>
+                        {% endif %}
+                        {% if entry.previous_stage and entry.new_stage %}
+                        <span><i class="bi bi-arrow-right me-1"></i>{{ entry.previous_stage }} → {{ entry.new_stage }}</span>
+                        {% endif %}
+                    </div>
+                    {% if entry.comments %}
+                    <p class="mb-0 mt-1 text-muted fst-italic" style="font-size:.8rem;">
+                        <i class="bi bi-chat-quote me-1"></i>{{ entry.comments }}
+                    </p>
+                    {% endif %}
+                </div>
+                {% if entry.details %}
+                <button type="button" class="btn btn-outline-secondary btn-sm ms-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#detailModal{{ entry.id }}">
+                    <i class="bi bi-eye"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+            No audit log entries found.
+        </div>
+        {% endfor %}
     </div>
 </div>
 
@@ -105,7 +175,7 @@
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
             {% if pagination.has_prev %}
             <a class="page-link" aria-label="Previous page"
-               href="{{ url_for('main.audit_log', page=pagination.prev_num, action=q_action, entity=q_entity, user=q_user) }}">&laquo;</a>
+               href="{{ url_for('main.audit_log', page=pagination.prev_num, action=q_action, entity=q_entity, user=q_user, date_from=q_date_from, date_to=q_date_to, role=q_role, report_type=q_report_type, action_type=q_action_type, stage=q_stage, keyword=q_keyword) }}">&laquo;</a>
             {% else %}
             <span class="page-link" aria-label="Previous page" aria-disabled="true">&laquo;</span>
             {% endif %}
@@ -114,7 +184,7 @@
             {% if p %}
             <li class="page-item {% if p == pagination.page %}active{% endif %}">
                 <a class="page-link" aria-label="Page {{ p }}" {% if p == pagination.page %}aria-current="page"{% endif %}
-                   href="{{ url_for('main.audit_log', page=p, action=q_action, entity=q_entity, user=q_user) }}">{{ p }}</a>
+                   href="{{ url_for('main.audit_log', page=p, action=q_action, entity=q_entity, user=q_user, date_from=q_date_from, date_to=q_date_to, role=q_role, report_type=q_report_type, action_type=q_action_type, stage=q_stage, keyword=q_keyword) }}">{{ p }}</a>
             </li>
             {% else %}
             <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -123,7 +193,7 @@
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
             {% if pagination.has_next %}
             <a class="page-link" aria-label="Next page"
-               href="{{ url_for('main.audit_log', page=pagination.next_num, action=q_action, entity=q_entity, user=q_user) }}">&raquo;</a>
+               href="{{ url_for('main.audit_log', page=pagination.next_num, action=q_action, entity=q_entity, user=q_user, date_from=q_date_from, date_to=q_date_to, role=q_role, report_type=q_report_type, action_type=q_action_type, stage=q_stage, keyword=q_keyword) }}">&raquo;</a>
             {% else %}
             <span class="page-link" aria-label="Next page" aria-disabled="true">&raquo;</span>
             {% endif %}
@@ -153,7 +223,20 @@
                     &nbsp;|&nbsp;
                     <i class="bi bi-person"></i>
                     {{ entry.performer.full_name if entry.performer else '—' }}
+                    {% if entry.user_role %}
+                    &nbsp;|&nbsp;
+                    <i class="bi bi-shield"></i> {{ entry.user_role }}
+                    {% endif %}
+                    {% if entry.ip_address %}
+                    &nbsp;|&nbsp;
+                    <i class="bi bi-globe"></i> {{ entry.ip_address }}
+                    {% endif %}
                 </div>
+                {% if entry.human_description %}
+                <div class="alert alert-light mb-3">
+                    <i class="bi bi-info-circle me-1"></i>{{ entry.human_description }}
+                </div>
+                {% endif %}
                 <div class="audit-detail-body" data-details="{{ entry.details | e }}"></div>
             </div>
         </div>
@@ -164,13 +247,14 @@
 
 <script>
 (function () {
-    // Human-friendly labels for common JSON keys
     const KEY_LABELS = {
         lab_number: 'Lab Number',
         sample_name: 'Sample Name',
         sample_type: 'Sample Type',
         status: 'Status',
         current_status: 'Current Status',
+        previous_status: 'Previous Status',
+        new_status: 'New Status',
         date_received: 'Date Received',
         date_registered: 'Date Registered',
         uploaded_by_name: 'Uploaded By',
@@ -189,7 +273,6 @@
         removed_from: 'Removed From',
         removed_by: 'Removed By',
         analyst: 'Analyst',
-        previous_status: 'Previous Status',
         returned_by: 'Returned By',
         comments: 'Comments',
         changes: 'Changes',
@@ -221,6 +304,8 @@
         test_reference: 'Test Reference',
         chemist_name: 'Chemist',
         assigned_date: 'Assigned Date',
+        comment_by: 'Comment By',
+        comment_text: 'Comment Text',
     };
 
     function formatValue(val) {
@@ -248,7 +333,6 @@
             var data = JSON.parse(raw);
             el.innerHTML = buildTable(data);
         } catch (e) {
-            // Not JSON — render as plain text
             var pre = document.createElement('pre');
             pre.className = 'bg-light p-3 rounded small';
             pre.style.whiteSpace = 'pre-wrap';
