@@ -664,6 +664,7 @@
                     <th>Analyst</th>
                     <th>Assigned</th>
                     <th>Test Date</th>
+                    <th>Report Date</th>
                     <th>Status</th>
                     <th></th>
                 </tr>
@@ -680,6 +681,7 @@
                     <td>{{ a.chemist.full_name if a.chemist else 'Unknown' }}</td>
                     <td>{{ a.assigned_date.strftime('%d %b %Y') }}</td>
                     <td>{{ a.test_date.strftime('%d %b %Y') if a.test_date else '—' }}</td>
+                    <td>{{ a.report_submitted_at.strftime('%d %b %Y') if a.report_submitted_at else '—' }}</td>
                     <td>
                         <span class="badge bg-{{ a_colors.get(a.status.value, 'secondary') }}">
                             {{ a.status.value }}
@@ -1057,9 +1059,94 @@
         {% endif %}
     </div>
 </div>
+
+{# ── Collapsible Sample Sections ── #}
+<style>
+.collapsible-header { cursor: pointer; user-select: none; }
+.collapsible-header .collapse-icon { transition: transform 0.2s ease; }
+.collapsible-header.collapsed .collapse-icon { transform: rotate(-90deg); }
+.collapsible-header:hover { background: var(--bs-tertiary-bg); }
+.card-body-collapse.collapsing,
+.card-body-collapse.collapse { transition: height 0.25s ease; }
+/* Show validation indicator on collapsed sections with errors */
+.card.has-validation-error > .card-header { border-left: 3px solid var(--bs-danger); }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Target all .card.mb-4 inside the content area (sample sections)
+    var cards = document.querySelectorAll('.card.mb-4');
+    var STORAGE_KEY = 'dgc_collapsed_sections_{{ sample.id }}';
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) {}
+
+    cards.forEach(function(card, idx) {
+        var header = card.querySelector('.card-header');
+        var body = card.querySelector('.card-body, .table-responsive, .list-group');
+        if (!header || !body) return;
+
+        var sectionId = 'section-collapse-' + idx;
+        var isCollapsed = saved[sectionId] === true;
+
+        // Wrap body content for collapse
+        var wrapper = document.createElement('div');
+        wrapper.className = 'card-body-collapse collapse' + (isCollapsed ? '' : ' show');
+        wrapper.id = sectionId;
+        // Move all siblings after header into wrapper
+        var siblings = [];
+        var node = header.nextElementSibling;
+        while (node) { siblings.push(node); node = node.nextElementSibling; }
+        siblings.forEach(function(s) { wrapper.appendChild(s); });
+        card.appendChild(wrapper);
+
+        // Add collapse icon to header
+        var icon = document.createElement('i');
+        icon.className = 'bi bi-chevron-down collapse-icon ms-auto';
+        header.classList.add('collapsible-header', 'd-flex', 'align-items-center');
+        if (isCollapsed) header.classList.add('collapsed');
+        header.appendChild(icon);
+
+        // Toggle on click
+        header.setAttribute('data-bs-toggle', 'collapse');
+        header.setAttribute('data-bs-target', '#' + sectionId);
+        header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+        header.setAttribute('aria-controls', sectionId);
+
+        // Save state on toggle
+        wrapper.addEventListener('hidden.bs.collapse', function() {
+            header.classList.add('collapsed');
+            saved[sectionId] = true;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch(e) {}
+        });
+        wrapper.addEventListener('shown.bs.collapse', function() {
+            header.classList.remove('collapsed');
+            saved[sectionId] = false;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); } catch(e) {}
+        });
+
+        // Mark cards with validation errors inside collapsed sections
+        var hasError = wrapper.querySelector('.is-invalid, .invalid-feedback:not(.d-none), .text-danger');
+        if (hasError) card.classList.add('has-validation-error');
+    });
+});
+</script>
 {% endblock %}
 
 {% block modals %}
+{% set sv = sample.status.value %}
+{% set status_colors = {
+    'Registered': 'info',
+    'Assigned': 'primary',
+    'In Progress': 'info',
+    'Report Submitted': 'warning',
+    'Preliminary Review': 'warning',
+    'Branch Head Review': 'warning',
+    'HOD Review': 'warning',
+    'Returned for Correction': 'danger',
+    'Certificate Issued': 'success',
+    'Completed': 'success',
+    'Rejected': 'danger',
+    'Cancelled': 'dark',
+} %}
 {# ── Return to Analyst modal ── #}
 <div class="modal fade" id="returnToAnalystModal" tabindex="-1"
      aria-labelledby="returnToAnalystModalLabel" aria-hidden="true">
