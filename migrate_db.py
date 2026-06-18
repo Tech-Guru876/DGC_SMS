@@ -121,6 +121,23 @@ MIGRATIONS = [
     ('dropdown_configs', 'branch', 'VARCHAR(100)'),
     # Pharmaceutical – manufacturer field
     ('samples', 'manufacturer', 'VARCHAR(255)'),
+    # HOD Workflow Return fields
+    ('samples', 'returned_to_stage', 'VARCHAR(50)'),
+    ('samples', 'hod_return_reason', 'TEXT'),
+    ('samples', 'returned_by_hod_at', 'DATETIME'),
+    # Enhanced Audit Log fields
+    ('audit_log', 'human_description', 'TEXT'),
+    ('audit_log', 'user_role', 'VARCHAR(50)'),
+    ('audit_log', 'user_department', 'VARCHAR(100)'),
+    ('audit_log', 'report_type', 'VARCHAR(50)'),
+    ('audit_log', 'previous_value', 'TEXT'),
+    ('audit_log', 'new_value', 'TEXT'),
+    ('audit_log', 'previous_stage', 'VARCHAR(50)'),
+    ('audit_log', 'new_stage', 'VARCHAR(50)'),
+    ('audit_log', 'comments', 'TEXT'),
+    ('audit_log', 'ip_address', 'VARCHAR(45)'),
+    ('audit_log', 'user_agent', 'VARCHAR(500)'),
+    ('audit_log', 'success', 'BOOLEAN DEFAULT 1'),
 ]
 
 NEW_TABLES = [
@@ -354,6 +371,21 @@ NEW_TABLES = [
         '  created_by INTEGER REFERENCES users(id),'
         '  created_at DATETIME,'
         '  UNIQUE (category, value, branch)'
+        ')',
+    ),
+    # Sample Comments
+    (
+        'sample_comments',
+        'CREATE TABLE IF NOT EXISTS sample_comments ('
+        '  id INTEGER PRIMARY KEY AUTOINCREMENT,'
+        '  sample_id INTEGER NOT NULL REFERENCES samples(id),'
+        '  user_id INTEGER NOT NULL REFERENCES users(id),'
+        '  comment_text TEXT NOT NULL,'
+        '  created_at DATETIME,'
+        '  updated_at DATETIME,'
+        '  is_deleted BOOLEAN DEFAULT 0,'
+        '  deleted_by INTEGER REFERENCES users(id),'
+        '  deleted_at DATETIME'
         ')',
     ),
 ]

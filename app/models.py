@@ -103,6 +103,14 @@ class Permission(enum.Enum):
     MANAGE_DROPDOWNS        = 'Manage Dropdown Values'
     MANAGE_SETTINGS         = 'Manage Settings'
     VIEW_ALL_BRANCHES_REPORT = 'View All Branches Report'
+    # HOD Workflow Return & Audit/QC permissions
+    HOD_WORKFLOW_RETURN     = 'HOD Workflow Return'
+    QC_DATA_DOWNLOAD        = 'QC Data Download'
+    AUDIT_LOG_VIEW          = 'View Audit Log'
+    AUDIT_LOG_EXPORT        = 'Export Audit Log'
+    SAMPLE_COMMENT_ADD      = 'Add Sample Comments'
+    SAMPLE_COMMENT_EDIT     = 'Edit Sample Comments'
+    SAMPLE_COMMENT_DELETE   = 'Delete Sample Comments'
 
 
 # ---------------------------------------------------------------------------
@@ -613,6 +621,11 @@ class Sample(db.Model):
         db.Integer, db.ForeignKey('users.id'), nullable=True
     )
 
+    # HOD Workflow Return – allows HOD to return to any prior stage
+    returned_to_stage = db.Column(db.String(50), nullable=True)
+    hod_return_reason = db.Column(db.Text, nullable=True)
+    returned_by_hod_at = db.Column(db.DateTime, nullable=True)
+
     # Relationships
     assignments = db.relationship(
         'SampleAssignment', backref='sample', lazy='dynamic',
@@ -642,6 +655,10 @@ class Sample(db.Model):
     )
     reissuer = db.relationship(
         'User', foreign_keys=[reissued_by]
+    )
+    comments = db.relationship(
+        'SampleComment', backref='sample', lazy='dynamic',
+        cascade='all, delete-orphan', order_by='SampleComment.created_at'
     )
 
     def __repr__(self):
@@ -1239,10 +1256,55 @@ class AuditLog(db.Model):
     )
     performed_at = db.Column(db.DateTime, default=jamaica_now)
 
+    # Enhanced audit fields
+    human_description = db.Column(db.Text, nullable=True)       # Plain English description
+    user_role = db.Column(db.String(50), nullable=True)         # Role at time of action
+    user_department = db.Column(db.String(100), nullable=True)  # Branch/section
+    report_type = db.Column(db.String(50), nullable=True)       # Branch enum value
+    previous_value = db.Column(db.Text, nullable=True)          # Previous value (field changes)
+    new_value = db.Column(db.Text, nullable=True)               # New value (field changes)
+    previous_stage = db.Column(db.String(50), nullable=True)    # Prior workflow stage
+    new_stage = db.Column(db.String(50), nullable=True)         # New workflow stage
+    comments = db.Column(db.Text, nullable=True)                # User-entered reason/remarks
+    ip_address = db.Column(db.String(45), nullable=True)        # Request IP
+    user_agent = db.Column(db.String(500), nullable=True)       # Browser/device info
+    success = db.Column(db.Boolean, default=True)               # Whether action succeeded
+
     performer = db.relationship('User', foreign_keys=[performed_by])
 
     def __repr__(self):
         return f'<AuditLog {self.action} {self.entity_type}#{self.entity_id}>'
+
+
+# ---------------------------------------------------------------------------
+# Sample Comments  (per-sample discussion thread)
+# ---------------------------------------------------------------------------
+
+class SampleComment(db.Model):
+    """A comment attached to a specific sample, forming a discussion thread."""
+    __tablename__ = 'sample_comments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sample_id = db.Column(
+        db.Integer, db.ForeignKey('samples.id'), nullable=False, index=True
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey('users.id'), nullable=False
+    )
+    comment_text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=jamaica_now)
+    updated_at = db.Column(db.DateTime, nullable=True)
+    is_deleted = db.Column(db.Boolean, default=False)
+    deleted_by = db.Column(
+        db.Integer, db.ForeignKey('users.id'), nullable=True
+    )
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    author = db.relationship('User', foreign_keys=[user_id], backref='sample_comments')
+    deleter = db.relationship('User', foreign_keys=[deleted_by])
+
+    def __repr__(self):
+        return f'<SampleComment {self.id} on Sample {self.sample_id}>'
 
 
 # ---------------------------------------------------------------------------
