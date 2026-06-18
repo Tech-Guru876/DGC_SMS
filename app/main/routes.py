@@ -962,7 +962,7 @@ def pharma_report_download():
     writer.writerow([
         'Lab Number', 'Sample Name', 'Type', 'Formulation', 'Manufacturer', 'API',
         'Status', 'Date Received', 'Date Registered',
-        'Expected Report Date', 'Certified Date', 'Turnaround (days)',
+        'Certified Date', 'Turnaround (days)',
         'Report Resubmissions', 'COA Version',
     ])
     for s in samples:
@@ -980,7 +980,6 @@ def pharma_report_download():
             s.status.value if s.status else '',
             s.date_received.isoformat() if s.date_received else '',
             s.date_registered.strftime('%Y-%m-%d') if s.date_registered else '',
-            s.expected_report_date.isoformat() if s.expected_report_date else '',
             s.certified_at.strftime('%Y-%m-%d') if s.certified_at else '',
             tat,
             resubmissions.get(s.id, 0),
@@ -1142,7 +1141,7 @@ def milk_report_download():
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
-        'Lab Number', 'Source', 'Milk Type', 'Volume',
+        'Lab Number', 'Source', 'Milk Type', 'Volume', 'Parish',
         'Status', 'Date Received', 'Date Registered',
         'Certified Date', 'Turnaround (days)', 'Report Resubmissions', 'COA Version',
     ])
@@ -1161,6 +1160,7 @@ def milk_report_download():
             s.sample_name,
             milk_type_label,
             s.volume or '',
+            s.parish or '',
             s.status.value if s.status else '',
             s.date_received.isoformat() if s.date_received else '',
             s.date_registered.strftime('%Y-%m-%d') if s.date_registered else '',
@@ -1337,6 +1337,7 @@ def toxicology_report_download():
     writer = csv.writer(buf)
     writer.writerow([
         'Lab Number', 'Sample Name', 'Sample Type', 'Patient Name',
+        'Hospital', 'Parish',
         'Status', 'Date Received', 'Date Registered',
         'Certified Date', 'Turnaround (working days)', 'Report Resubmissions',
     ])
@@ -1350,6 +1351,8 @@ def toxicology_report_download():
             s.sample_name,
             s.toxicology_sample_type_name or '',
             s.patient_name or '',
+            s.ward_clinic or '',
+            s.parish or '',
             s.status.value if s.status else '',
             s.date_received.isoformat() if s.date_received else '',
             s.date_registered.strftime('%Y-%m-%d') if s.date_registered else '',
@@ -3720,8 +3723,9 @@ def kpi_monthly():
 @main_bp.route('/audit-log')
 @login_required
 def audit_log():
-    """View the permanent audit log – Admin and SuperAdmin only."""
-    if not current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN):
+    """View the permanent audit log – Admin, SuperAdmin, HOD, or users with AUDIT_LOG_VIEW."""
+    if not (current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN, Role.HOD)
+            or current_user.has_permission(Permission.AUDIT_LOG_VIEW)):
         flash('Access denied.', 'danger')
         return redirect(url_for('main.dashboard'))
 
@@ -3729,6 +3733,13 @@ def audit_log():
     q_action = request.args.get('action', '').strip()
     q_entity = request.args.get('entity', '').strip()
     q_user = request.args.get('user', '').strip()
+    q_date_from = request.args.get('date_from', '').strip()
+    q_date_to = request.args.get('date_to', '').strip()
+    q_role = request.args.get('role', '').strip()
+    q_report_type = request.args.get('report_type', '').strip()
+    q_action_type = request.args.get('action_type', '').strip()
+    q_stage = request.args.get('stage', '').strip()
+    q_keyword = request.args.get('keyword', '').strip()
 
     query = AuditLog.query
     if q_action:
@@ -3750,10 +3761,50 @@ def audit_log():
         ).with_entities(User.id).all()
         user_ids = [u.id for u in matching_users]
         query = query.filter(AuditLog.performed_by.in_(user_ids))
+    if q_date_from:
+        try:
+            date_from = datetime.strptime(q_date_from, '%Y-%m-%d')
+            query = query.filter(AuditLog.performed_at >= date_from)
+        except ValueError:
+            pass
+    if q_date_to:
+        try:
+            date_to = datetime.strptime(q_date_to, '%Y-%m-%d').replace(
+                hour=23, minute=59, second=59)
+            query = query.filter(AuditLog.performed_at <= date_to)
+        except ValueError:
+            pass
+    if q_role:
+        query = query.filter(AuditLog.user_role.ilike(f'%{q_role}%'))
+    if q_report_type:
+        query = query.filter(AuditLog.report_type.ilike(f'%{q_report_type}%'))
+    if q_action_type:
+        query = query.filter(AuditLog.action.ilike(f'%{q_action_type}%'))
+    if q_stage:
+        query = query.filter(
+            db.or_(
+                AuditLog.previous_stage.ilike(f'%{q_stage}%'),
+                AuditLog.new_stage.ilike(f'%{q_stage}%'),
+            )
+        )
+    if q_keyword:
+        query = query.filter(
+            db.or_(
+                AuditLog.human_description.ilike(f'%{q_keyword}%'),
+                AuditLog.entity_label.ilike(f'%{q_keyword}%'),
+                AuditLog.details.ilike(f'%{q_keyword}%'),
+                AuditLog.comments.ilike(f'%{q_keyword}%'),
+            )
+        )
 
     pagination = query.order_by(AuditLog.performed_at.desc()).paginate(
         page=page, per_page=50, error_out=False
     )
+
+    # Provide filter option lists
+    roles_list = [r.value for r in Role]
+    report_types_list = [b.value for b in Branch]
+    stages_list = [s.value for s in SampleStatus]
 
     return render_template(
         'audit_log.html',
@@ -3762,4 +3813,424 @@ def audit_log():
         q_action=q_action,
         q_entity=q_entity,
         q_user=q_user,
+        q_date_from=q_date_from,
+        q_date_to=q_date_to,
+        q_role=q_role,
+        q_report_type=q_report_type,
+        q_action_type=q_action_type,
+        q_stage=q_stage,
+        q_keyword=q_keyword,
+        roles_list=roles_list,
+        report_types_list=report_types_list,
+        stages_list=stages_list,
+    )
+
+# ---------------------------------------------------------------------------
+# Audit Log PDF Export
+# ---------------------------------------------------------------------------
+
+@main_bp.route('/audit-log/export/pdf')
+@login_required
+def audit_log_export_pdf():
+    """Export filtered audit log entries to PDF."""
+    if not (current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN, Role.HOD)
+            or current_user.has_permission(Permission.AUDIT_LOG_EXPORT)):
+        flash('Access denied.', 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    import io
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    # Apply same filters as audit_log view
+    q_action = request.args.get('action', '').strip()
+    q_entity = request.args.get('entity', '').strip()
+    q_user = request.args.get('user', '').strip()
+    q_date_from = request.args.get('date_from', '').strip()
+    q_date_to = request.args.get('date_to', '').strip()
+    q_role = request.args.get('role', '').strip()
+    q_report_type = request.args.get('report_type', '').strip()
+    q_action_type = request.args.get('action_type', '').strip()
+    q_stage = request.args.get('stage', '').strip()
+    q_keyword = request.args.get('keyword', '').strip()
+
+    query = AuditLog.query
+    if q_action:
+        query = query.filter(AuditLog.action.ilike(f'%{q_action}%'))
+    if q_entity:
+        query = query.filter(
+            db.or_(
+                AuditLog.entity_type.ilike(f'%{q_entity}%'),
+                AuditLog.entity_label.ilike(f'%{q_entity}%'),
+            )
+        )
+    if q_user:
+        matching_users = User.query.filter(
+            db.or_(
+                User.first_name.ilike(f'%{q_user}%'),
+                User.last_name.ilike(f'%{q_user}%'),
+                User.username.ilike(f'%{q_user}%'),
+            )
+        ).with_entities(User.id).all()
+        user_ids = [u.id for u in matching_users]
+        query = query.filter(AuditLog.performed_by.in_(user_ids))
+    if q_date_from:
+        try:
+            date_from = datetime.strptime(q_date_from, '%Y-%m-%d')
+            query = query.filter(AuditLog.performed_at >= date_from)
+        except ValueError:
+            pass
+    if q_date_to:
+        try:
+            date_to = datetime.strptime(q_date_to, '%Y-%m-%d').replace(
+                hour=23, minute=59, second=59)
+            query = query.filter(AuditLog.performed_at <= date_to)
+        except ValueError:
+            pass
+    if q_role:
+        query = query.filter(AuditLog.user_role.ilike(f'%{q_role}%'))
+    if q_report_type:
+        query = query.filter(AuditLog.report_type.ilike(f'%{q_report_type}%'))
+    if q_action_type:
+        query = query.filter(AuditLog.action.ilike(f'%{q_action_type}%'))
+    if q_stage:
+        query = query.filter(
+            db.or_(
+                AuditLog.previous_stage.ilike(f'%{q_stage}%'),
+                AuditLog.new_stage.ilike(f'%{q_stage}%'),
+            )
+        )
+    if q_keyword:
+        query = query.filter(
+            db.or_(
+                AuditLog.human_description.ilike(f'%{q_keyword}%'),
+                AuditLog.entity_label.ilike(f'%{q_keyword}%'),
+                AuditLog.details.ilike(f'%{q_keyword}%'),
+                AuditLog.comments.ilike(f'%{q_keyword}%'),
+            )
+        )
+
+    # Limit to 5000 records
+    entries = query.order_by(AuditLog.performed_at.desc()).limit(5000).all()
+
+    # Build PDF
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=0.5*inch, rightMargin=0.5*inch,
+                            topMargin=0.5*inch, bottomMargin=0.5*inch)
+    styles = getSampleStyleSheet()
+    small_style = ParagraphStyle('Small', parent=styles['Normal'], fontSize=7,
+                                 leading=9)
+    elements = []
+
+    # Title
+    elements.append(Paragraph('SMS Audit Log Report', styles['Title']))
+    elements.append(Spacer(1, 12))
+
+    # Metadata
+    now_str = jamaica_now().strftime('%d %B %Y at %I:%M %p')
+    elements.append(Paragraph(
+        f'<b>Generated:</b> {now_str}', styles['Normal']))
+    elements.append(Paragraph(
+        f'<b>Generated By:</b> {current_user.full_name}', styles['Normal']))
+    elements.append(Spacer(1, 6))
+
+    # Filter summary
+    filters_applied = []
+    if q_date_from:
+        filters_applied.append(f'From: {q_date_from}')
+    if q_date_to:
+        filters_applied.append(f'To: {q_date_to}')
+    if q_user:
+        filters_applied.append(f'User: {q_user}')
+    if q_role:
+        filters_applied.append(f'Role: {q_role}')
+    if q_report_type:
+        filters_applied.append(f'Report Type: {q_report_type}')
+    if q_action:
+        filters_applied.append(f'Action: {q_action}')
+    if q_stage:
+        filters_applied.append(f'Stage: {q_stage}')
+    if q_keyword:
+        filters_applied.append(f'Keyword: {q_keyword}')
+    if q_entity:
+        filters_applied.append(f'Entity: {q_entity}')
+
+    if filters_applied:
+        elements.append(Paragraph(
+            f'<b>Filters:</b> {"; ".join(filters_applied)}', styles['Normal']))
+    else:
+        elements.append(Paragraph('<b>Filters:</b> None (all entries)', styles['Normal']))
+    elements.append(Paragraph(
+        f'<b>Total Entries:</b> {len(entries)}', styles['Normal']))
+    elements.append(Spacer(1, 18))
+
+    # Table data
+    header = ['#', 'Date/Time', 'Action', 'User', 'Entity', 'Description']
+    data = [header]
+    for i, entry in enumerate(entries, 1):
+        dt = entry.performed_at.strftime('%d %b %Y %H:%M') if entry.performed_at else ''
+        user_name = entry.performer.full_name if entry.performer else '—'
+        entity = entry.entity_label or str(entry.entity_id or '')
+        desc = entry.human_description or entry.action.replace('_', ' ')
+        # Truncate long descriptions for PDF
+        if len(desc) > 120:
+            desc = desc[:117] + '...'
+        data.append([
+            str(i),
+            Paragraph(dt, small_style),
+            Paragraph(entry.action.replace('_', ' '), small_style),
+            Paragraph(user_name, small_style),
+            Paragraph(entity, small_style),
+            Paragraph(desc, small_style),
+        ])
+
+    col_widths = [0.4*inch, 1.2*inch, 1.5*inch, 1.5*inch, 1.2*inch, 4*inch]
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    elements.append(table)
+
+    doc.build(elements)
+    buf.seek(0)
+
+    # Log the export action
+    db.session.add(AuditLog(
+        action='AUDIT_LOG_EXPORT',
+        entity_type='AuditLog',
+        entity_id=None,
+        entity_label='PDF Export',
+        details=json.dumps({
+            'exported_by': current_user.full_name,
+            'record_count': len(entries),
+            'filters': filters_applied,
+        }),
+        performed_by=current_user.id,
+        human_description=(
+            f'{current_user.full_name} exported Audit Log to PDF '
+            f'({len(entries)} entries). '
+            f'Filters: {"; ".join(filters_applied) if filters_applied else "None"}'
+        ),
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:500],
+        success=True,
+    ))
+    db.session.commit()
+
+    return Response(
+        buf.getvalue(),
+        mimetype='application/pdf',
+        headers={
+            'Content-Disposition': f'attachment; filename="Audit_Log_{jamaica_now().strftime("%Y%m%d")}.pdf"'
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Quality Control Data Downloads
+# ---------------------------------------------------------------------------
+
+@main_bp.route('/admin/qc-downloads')
+@login_required
+def qc_downloads():
+    """Quality Control data download page."""
+    if not (current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN)
+            or current_user.has_permission(Permission.QC_DATA_DOWNLOAD)):
+        flash('Access denied.', 'danger')
+        return redirect(url_for('main.dashboard'))
+    return render_template('admin/qc_downloads.html')
+
+
+@main_bp.route('/admin/qc-downloads/export', methods=['POST'])
+@login_required
+def qc_downloads_export():
+    """Execute a QC data download."""
+    if not (current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN)
+            or current_user.has_permission(Permission.QC_DATA_DOWNLOAD)):
+        flash('Access denied.', 'danger')
+        return redirect(url_for('main.dashboard'))
+
+    data_type = request.form.get('data_type', '').strip()
+    export_format = request.form.get('export_format', 'csv').strip()
+    date_from = request.form.get('date_from', '').strip()
+    date_to = request.form.get('date_to', '').strip()
+
+    valid_types = [
+        'user_permissions', 'workflow_logs', 'login_activity',
+        'report_activity', 'export_activity', 'error_logs',
+    ]
+    if data_type not in valid_types:
+        flash('Invalid data type selected.', 'danger')
+        return redirect(url_for('main.qc_downloads'))
+
+    # Parse date filters
+    dt_from = None
+    dt_to = None
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, '%Y-%m-%d')
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, '%Y-%m-%d').replace(
+                hour=23, minute=59, second=59)
+        except ValueError:
+            pass
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    record_count = 0
+
+    if data_type == 'user_permissions':
+        writer.writerow(['Username', 'Full Name', 'Email', 'Roles', 'Branches',
+                         'Permissions', 'Active', 'Last Seen'])
+        users = User.query.order_by(User.last_name).all()
+        for u in users:
+            roles = ', '.join(r.value for r in u.roles) if u.roles else ''
+            branches = ', '.join(b.value for b in u.branches) if u.branches else ''
+            perms = ', '.join(p.value for p in u.permissions) if u.permissions else ''
+            writer.writerow([
+                u.username, u.full_name, u.email, roles, branches, perms,
+                'Yes' if u.is_active_user else 'No',
+                u.last_seen.strftime('%Y-%m-%d %H:%M') if u.last_seen else '',
+            ])
+            record_count += 1
+
+    elif data_type == 'workflow_logs':
+        writer.writerow(['Date/Time', 'Action', 'Entity Type', 'Entity',
+                         'User', 'Role', 'Report Type', 'Previous Stage',
+                         'New Stage', 'Comments', 'Description'])
+        q = AuditLog.query
+        if dt_from:
+            q = q.filter(AuditLog.performed_at >= dt_from)
+        if dt_to:
+            q = q.filter(AuditLog.performed_at <= dt_to)
+        entries = q.order_by(AuditLog.performed_at.desc()).limit(10000).all()
+        for e in entries:
+            writer.writerow([
+                e.performed_at.strftime('%Y-%m-%d %H:%M') if e.performed_at else '',
+                e.action, e.entity_type, e.entity_label or '',
+                e.performer.full_name if e.performer else '',
+                e.user_role or '', e.report_type or '',
+                e.previous_stage or '', e.new_stage or '',
+                e.comments or '',
+                e.human_description or '',
+            ])
+            record_count += 1
+
+    elif data_type == 'login_activity':
+        writer.writerow(['Username', 'Full Name', 'Last Seen',
+                         'Failed Attempts', 'Locked Until', 'Active'])
+        users = User.query.order_by(User.last_seen.desc().nullslast()).all()
+        for u in users:
+            writer.writerow([
+                u.username, u.full_name,
+                u.last_seen.strftime('%Y-%m-%d %H:%M') if u.last_seen else 'Never',
+                u.failed_login_attempts or 0,
+                u.locked_until.strftime('%Y-%m-%d %H:%M') if u.locked_until else '',
+                'Yes' if u.is_active_user else 'No',
+            ])
+            record_count += 1
+
+    elif data_type == 'report_activity':
+        writer.writerow(['Date/Time', 'Action', 'Lab Number', 'Sample Name',
+                         'Report Type', 'User', 'Status Change'])
+        q = AuditLog.query.filter(AuditLog.entity_type == 'Sample')
+        if dt_from:
+            q = q.filter(AuditLog.performed_at >= dt_from)
+        if dt_to:
+            q = q.filter(AuditLog.performed_at <= dt_to)
+        entries = q.order_by(AuditLog.performed_at.desc()).limit(10000).all()
+        for e in entries:
+            stage_change = ''
+            if e.previous_stage and e.new_stage:
+                stage_change = f'{e.previous_stage} → {e.new_stage}'
+            writer.writerow([
+                e.performed_at.strftime('%Y-%m-%d %H:%M') if e.performed_at else '',
+                e.action, e.entity_label or '', '',
+                e.report_type or '',
+                e.performer.full_name if e.performer else '',
+                stage_change,
+            ])
+            record_count += 1
+
+    elif data_type == 'export_activity':
+        writer.writerow(['Date/Time', 'Action', 'User', 'Details'])
+        q = AuditLog.query.filter(
+            db.or_(
+                AuditLog.action.ilike('%EXPORT%'),
+                AuditLog.action.ilike('%DOWNLOAD%'),
+            )
+        )
+        if dt_from:
+            q = q.filter(AuditLog.performed_at >= dt_from)
+        if dt_to:
+            q = q.filter(AuditLog.performed_at <= dt_to)
+        entries = q.order_by(AuditLog.performed_at.desc()).limit(10000).all()
+        for e in entries:
+            writer.writerow([
+                e.performed_at.strftime('%Y-%m-%d %H:%M') if e.performed_at else '',
+                e.action,
+                e.performer.full_name if e.performer else '',
+                e.human_description or e.details or '',
+            ])
+            record_count += 1
+
+    elif data_type == 'error_logs':
+        # Return empty – error logs from Python logging are not in DB
+        writer.writerow(['Note'])
+        writer.writerow(['System error logs are stored in application log files. '
+                         'Contact system administrator for server-level logs.'])
+        record_count = 0
+
+    # Log the download
+    filters_used = []
+    if date_from:
+        filters_used.append(f'from={date_from}')
+    if date_to:
+        filters_used.append(f'to={date_to}')
+
+    db.session.add(AuditLog(
+        action='QC_DATA_DOWNLOAD',
+        entity_type='SystemExport',
+        entity_id=None,
+        entity_label=f'{data_type} Export',
+        details=json.dumps({
+            'data_type': data_type,
+            'format': export_format,
+            'record_count': record_count,
+            'filters': filters_used,
+        }),
+        performed_by=current_user.id,
+        human_description=(
+            f'{current_user.full_name} downloaded {data_type.replace("_", " ").title()} '
+            f'data ({record_count} records) in {export_format.upper()} format.'
+        ),
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:500],
+        success=True,
+    ))
+    db.session.commit()
+
+    filename = f'QC_{data_type}_{jamaica_now().strftime("%Y%m%d")}.csv'
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )

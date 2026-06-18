@@ -21,6 +21,7 @@ from app.models import (
     KpiTarget, fiscal_year_for_date, fiscal_quarter_for_date,
     calculate_working_days, fetch_non_working_days, add_working_days,
     Invoice, InvoiceItem, PHARMA_TEST_PRICES, DropdownConfig,
+    SampleComment,
 )
 from app.forms import (
     SampleRegisterForm, SampleEditForm, SampleAssignForm,
@@ -568,6 +569,7 @@ def detail(sample_id):
         review_pagination=review_pagination,
         pending_backdate=pending_backdate,
         can_submit_to_deputy=can_submit_to_deputy,
+        SampleComment=SampleComment,
     )
 
 
@@ -3203,3 +3205,393 @@ def invoice_detail(sample_id, invoice_id):
         sample=sample, invoice=invoice, items=items, assignments=assignments,
         grand_total=grand_total,
     )
+
+
+# ---------------------------------------------------------------------------
+# HOD Workflow Return — return any report at any stage
+# ---------------------------------------------------------------------------
+
+# Valid return targets mapped by current status
+HOD_RETURN_TARGETS = {
+    SampleStatus.ASSIGNED: [SampleStatus.REGISTERED],
+    SampleStatus.IN_PROGRESS: [SampleStatus.REGISTERED, SampleStatus.ASSIGNED],
+    SampleStatus.REPORT_SUBMITTED: [SampleStatus.ASSIGNED, SampleStatus.IN_PROGRESS],
+    SampleStatus.UNDER_PRELIMINARY_REVIEW: [
+        SampleStatus.ASSIGNED, SampleStatus.IN_PROGRESS,
+        SampleStatus.REPORT_SUBMITTED,
+    ],
+    SampleStatus.UNDER_TECHNICAL_REVIEW: [
+        SampleStatus.ASSIGNED, SampleStatus.REPORT_SUBMITTED,
+        SampleStatus.UNDER_PRELIMINARY_REVIEW,
+    ],
+    SampleStatus.ACCEPTED: [
+        SampleStatus.ASSIGNED, SampleStatus.UNDER_TECHNICAL_REVIEW,
+    ],
+    SampleStatus.DEPUTY_REVIEW: [
+        SampleStatus.ASSIGNED, SampleStatus.ACCEPTED,
+        SampleStatus.UNDER_TECHNICAL_REVIEW,
+    ],
+    SampleStatus.CERTIFICATE_PREPARATION: [
+        SampleStatus.DEPUTY_REVIEW, SampleStatus.ACCEPTED,
+    ],
+    SampleStatus.HOD_REVIEW: [
+        SampleStatus.DEPUTY_REVIEW, SampleStatus.CERTIFICATE_PREPARATION,
+        SampleStatus.ACCEPTED,
+    ],
+}
+
+
+@samples_bp.route('/sample/<int:sample_id>/hod-return', methods=['POST'])
+@login_required
+def hod_workflow_return(sample_id):
+    """HOD returns a report to any valid prior workflow stage."""
+    sample = db.get_or_404(Sample, sample_id)
+
+    # Permission check: must be HOD or have HOD_WORKFLOW_RETURN permission
+    if not (current_user.has_role(Role.HOD)
+            or current_user.has_permission(Permission.HOD_WORKFLOW_RETURN)
+            or current_user.has_role(Role.ADMIN)):
+        flash('Only the HOD can return reports across workflow stages.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    # Non-returnable statuses
+    non_returnable = {
+        SampleStatus.REGISTERED, SampleStatus.CERTIFIED,
+        SampleStatus.COMPLETED, SampleStatus.REJECTED,
+    }
+    if sample.status in non_returnable:
+        flash('This report cannot be returned from its current state.', 'warning')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    target_stage_str = request.form.get('target_stage', '').strip()
+    reason = request.form.get('return_reason', '').strip()
+
+    # Validate reason
+    if not reason or len(reason) < 10:
+        flash('Please provide a detailed reason (minimum 10 characters).', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    # Validate target stage
+    valid_targets = HOD_RETURN_TARGETS.get(sample.status, [])
+    target_status = None
+    for status in valid_targets:
+        if status.name == target_stage_str:
+            target_status = status
+            break
+
+    if target_status is None:
+        flash('Invalid return target stage.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    old_status = sample.status
+    old_status_value = old_status.value
+
+    # Update sample
+    sample.status = target_status
+    sample.returned_to_stage = target_status.name
+    sample.hod_return_reason = reason
+    sample.returned_by_hod_at = jamaica_now()
+
+    # If returning to analyst-level stage, reset assignments
+    analyst_stages = {SampleStatus.ASSIGNED, SampleStatus.IN_PROGRESS,
+                      SampleStatus.REPORT_SUBMITTED}
+    if target_status in analyst_stages:
+        for assignment in sample.assignments.all():
+            if assignment.status not in (AssignmentStatus.RETURNED,
+                                         AssignmentStatus.ASSIGNED):
+                assignment.status = AssignmentStatus.RETURNED
+                assignment.return_stage = 'hod'
+
+    # Record history
+    _add_history(
+        sample,
+        'HOD Workflow Return',
+        (f'{current_user.full_name} (HOD) returned report from '
+         f'"{old_status_value}" to "{target_status.value}". '
+         f'Reason: {reason}'),
+        action_type='HOD Return',
+        object_affected='Sample',
+        change_description=(
+            f'Report returned by HOD from {old_status_value} to '
+            f'{target_status.value}. Reason: {reason}'),
+    )
+
+    # Record in ReviewHistory
+    db.session.add(ReviewHistory(
+        sample_id=sample.id,
+        review_type='hod',
+        review_number=1,
+        action='returned',
+        reviewer_id=current_user.id,
+        reviewed_at=jamaica_now(),
+        comments=reason,
+    ))
+
+    # Record in AuditLog with enhanced fields
+    user_role_str = ''
+    if current_user.roles:
+        user_role_str = ', '.join(r.value for r in current_user.roles)
+    user_branch_str = ''
+    if current_user.branches:
+        user_branch_str = ', '.join(b.value for b in current_user.branches)
+
+    human_desc = (
+        f'{current_user.full_name}, {user_role_str or "HOD"}, returned '
+        f'{sample.sample_type.value} Report #{sample.lab_number} from '
+        f"'{old_status_value}' to '{target_status.value}' on "
+        f'{jamaica_now().strftime("%d %B %Y at %I:%M %p")}. '
+        f'Reason: {reason}'
+    )
+
+    db.session.add(AuditLog(
+        action='HOD_WORKFLOW_RETURN',
+        entity_type='Sample',
+        entity_id=sample.id,
+        entity_label=sample.lab_number,
+        details=json.dumps({
+            'lab_number': sample.lab_number,
+            'sample_name': sample.sample_name,
+            'previous_status': old_status_value,
+            'new_status': target_status.value,
+            'returned_by': current_user.full_name,
+            'reason': reason,
+        }),
+        performed_by=current_user.id,
+        human_description=human_desc,
+        user_role=user_role_str,
+        user_department=user_branch_str,
+        report_type=sample.sample_type.value if sample.sample_type else None,
+        previous_stage=old_status.name,
+        new_stage=target_status.name,
+        comments=reason,
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent', '')[:500],
+        success=True,
+    ))
+
+    db.session.commit()
+
+    # Notify relevant users
+    from app.notifications import create_notification
+
+    # Determine who to notify based on target stage
+    recipients = set()
+    if target_status in analyst_stages:
+        # Notify all assigned chemists
+        for assignment in sample.assignments.all():
+            if assignment.chemist_id:
+                recipients.add(assignment.chemist_id)
+    elif target_status == SampleStatus.UNDER_PRELIMINARY_REVIEW:
+        # Notify officers
+        officer_users = User.query.join(user_roles).filter(
+            user_roles.c.role == Role.OFFICER
+        ).all()
+        for u in officer_users:
+            recipients.add(u.id)
+    elif target_status == SampleStatus.UNDER_TECHNICAL_REVIEW:
+        # Notify senior chemists
+        sc_users = User.query.join(user_roles).filter(
+            user_roles.c.role == Role.SENIOR_CHEMIST
+        ).all()
+        for u in sc_users:
+            recipients.add(u.id)
+    elif target_status in (SampleStatus.DEPUTY_REVIEW,
+                           SampleStatus.CERTIFICATE_PREPARATION):
+        # Notify deputies
+        deputy_users = User.query.join(user_roles).filter(
+            user_roles.c.role == Role.DEPUTY
+        ).all()
+        for u in deputy_users:
+            recipients.add(u.id)
+    elif target_status == SampleStatus.ACCEPTED:
+        # Notify senior chemists in branch
+        sc_users = User.query.join(user_roles).filter(
+            user_roles.c.role == Role.SENIOR_CHEMIST
+        ).all()
+        for u in sc_users:
+            recipients.add(u.id)
+
+    for user_id in recipients:
+        if user_id != current_user.id:
+            notif_message = (
+                f'Report "{sample.sample_name}" (Lab# {sample.lab_number}) has been '
+                f'returned by HOD from "{old_status_value}" to '
+                f'"{target_status.value}".\n\nReason: {reason}'
+            )
+            create_notification(
+                user_id,
+                f'Report Returned by HOD: {sample.lab_number}',
+                notif_message,
+                f'/samples/{sample.id}',
+            )
+    db.session.commit()
+
+    flash(
+        f'Report returned from "{old_status_value}" to "{target_status.value}".',
+        'success',
+    )
+    return redirect(url_for('samples.detail', sample_id=sample.id))
+
+
+# ---------------------------------------------------------------------------
+# Sample Comments — add, edit, delete comments on a sample
+# ---------------------------------------------------------------------------
+
+@samples_bp.route('/sample/<int:sample_id>/comments', methods=['POST'])
+@login_required
+def add_comment(sample_id):
+    """Add a comment to a sample."""
+    sample = db.get_or_404(Sample, sample_id)
+
+    # Permission check
+    if not (current_user.has_permission(Permission.SAMPLE_COMMENT_ADD)
+            or current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN,
+                                         Role.HOD, Role.DEPUTY,
+                                         Role.SENIOR_CHEMIST, Role.CHEMIST,
+                                         Role.OFFICER)):
+        flash('You do not have permission to add comments.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    comment_text = request.form.get('comment_text', '').strip()
+    if not comment_text:
+        flash('Comment cannot be empty.', 'warning')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    if len(comment_text) > 5000:
+        flash('Comment exceeds maximum length of 5000 characters.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    comment = SampleComment(
+        sample_id=sample.id,
+        user_id=current_user.id,
+        comment_text=comment_text,
+    )
+    db.session.add(comment)
+
+    # Audit log
+    db.session.add(AuditLog(
+        action='COMMENT_ADDED',
+        entity_type='SampleComment',
+        entity_id=sample.id,
+        entity_label=sample.lab_number,
+        details=json.dumps({
+            'sample_lab_number': sample.lab_number,
+            'comment_by': current_user.full_name,
+            'comment_text': comment_text[:200],
+        }),
+        performed_by=current_user.id,
+        human_description=(
+            f'{current_user.full_name} added a comment on '
+            f'{sample.sample_type.value} Sample #{sample.lab_number}.'
+        ),
+        report_type=sample.sample_type.value if sample.sample_type else None,
+        ip_address=request.remote_addr,
+        success=True,
+    ))
+
+    db.session.commit()
+    flash('Comment added.', 'success')
+    return redirect(url_for('samples.detail', sample_id=sample.id))
+
+
+@samples_bp.route('/sample/<int:sample_id>/comments/<int:comment_id>/edit',
+                  methods=['POST'])
+@login_required
+def edit_comment(sample_id, comment_id):
+    """Edit a sample comment."""
+    sample = db.get_or_404(Sample, sample_id)
+    comment = db.get_or_404(SampleComment, comment_id)
+
+    if comment.sample_id != sample.id:
+        abort(404)
+
+    # Permission: own comment or admin
+    is_owner = (comment.user_id == current_user.id)
+    is_admin = current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN)
+    has_edit_perm = current_user.has_permission(Permission.SAMPLE_COMMENT_EDIT)
+
+    if not (is_owner or is_admin or has_edit_perm):
+        flash('You do not have permission to edit this comment.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    new_text = request.form.get('comment_text', '').strip()
+    if not new_text:
+        flash('Comment cannot be empty.', 'warning')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    if len(new_text) > 5000:
+        flash('Comment exceeds maximum length of 5000 characters.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    old_text = comment.comment_text
+    comment.comment_text = new_text
+    comment.updated_at = jamaica_now()
+
+    db.session.add(AuditLog(
+        action='COMMENT_EDITED',
+        entity_type='SampleComment',
+        entity_id=comment.id,
+        entity_label=sample.lab_number,
+        details=json.dumps({
+            'sample_lab_number': sample.lab_number,
+            'edited_by': current_user.full_name,
+        }),
+        performed_by=current_user.id,
+        human_description=(
+            f'{current_user.full_name} edited a comment on '
+            f'Sample #{sample.lab_number}.'
+        ),
+        previous_value=old_text[:500],
+        new_value=new_text[:500],
+        ip_address=request.remote_addr,
+        success=True,
+    ))
+
+    db.session.commit()
+    flash('Comment updated.', 'success')
+    return redirect(url_for('samples.detail', sample_id=sample.id))
+
+
+@samples_bp.route('/sample/<int:sample_id>/comments/<int:comment_id>/delete',
+                  methods=['POST'])
+@login_required
+def delete_comment(sample_id, comment_id):
+    """Soft-delete a sample comment."""
+    sample = db.get_or_404(Sample, sample_id)
+    comment = db.get_or_404(SampleComment, comment_id)
+
+    if comment.sample_id != sample.id:
+        abort(404)
+
+    # Permission: admin only
+    if not (current_user.has_any_role(Role.ADMIN, Role.SUPER_ADMIN)
+            or current_user.has_permission(Permission.SAMPLE_COMMENT_DELETE)):
+        flash('You do not have permission to delete comments.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    comment.is_deleted = True
+    comment.deleted_by = current_user.id
+    comment.deleted_at = jamaica_now()
+
+    db.session.add(AuditLog(
+        action='COMMENT_DELETED',
+        entity_type='SampleComment',
+        entity_id=comment.id,
+        entity_label=sample.lab_number,
+        details=json.dumps({
+            'sample_lab_number': sample.lab_number,
+            'deleted_by': current_user.full_name,
+            'original_text': comment.comment_text[:200],
+        }),
+        performed_by=current_user.id,
+        human_description=(
+            f'{current_user.full_name} deleted a comment on '
+            f'Sample #{sample.lab_number}.'
+        ),
+        ip_address=request.remote_addr,
+        success=True,
+    ))
+
+    db.session.commit()
+    flash('Comment deleted.', 'success')
+    return redirect(url_for('samples.detail', sample_id=sample.id))

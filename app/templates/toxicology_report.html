@@ -122,6 +122,8 @@
                     <th>Sample Name</th>
                     <th>Sample Type</th>
                     <th>Patient Name</th>
+                    <th>Hospital</th>
+                    <th>Parish</th>
                     <th>Status</th>
                     <th>Date Received</th>
                     <th>Registered</th>
@@ -138,6 +140,8 @@
                     <td>{{ s.sample_name }}</td>
                     <td>{{ s.toxicology_sample_type_name or '—' }}</td>
                     <td>{{ s.patient_name or '—' }}</td>
+                    <td>{{ s.ward_clinic or '—' }}</td>
+                    <td>{{ s.parish or '—' }}</td>
                     <td>
                         {% set status_colors = {
                             'Registered': 'secondary', 'Assigned': 'primary', 'In Progress': 'info',
@@ -167,7 +171,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="11" class="text-center text-muted py-4">No toxicology samples found.</td></tr>
+                <tr><td colspan="13" class="text-center text-muted py-4">No toxicology samples found.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
