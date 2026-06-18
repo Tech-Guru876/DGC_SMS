@@ -962,7 +962,7 @@ def pharma_report_download():
     writer.writerow([
         'Lab Number', 'Sample Name', 'Type', 'Formulation', 'Manufacturer', 'API',
         'Status', 'Date Received', 'Date Registered',
-        'Expected Report Date', 'Certified Date', 'Turnaround (days)',
+        'Certified Date', 'Turnaround (days)',
         'Report Resubmissions', 'COA Version',
     ])
     for s in samples:
@@ -980,7 +980,6 @@ def pharma_report_download():
             s.status.value if s.status else '',
             s.date_received.isoformat() if s.date_received else '',
             s.date_registered.strftime('%Y-%m-%d') if s.date_registered else '',
-            s.expected_report_date.isoformat() if s.expected_report_date else '',
             s.certified_at.strftime('%Y-%m-%d') if s.certified_at else '',
             tat,
             resubmissions.get(s.id, 0),
@@ -1142,7 +1141,7 @@ def milk_report_download():
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
-        'Lab Number', 'Source', 'Milk Type', 'Volume',
+        'Lab Number', 'Source', 'Milk Type', 'Volume', 'Parish',
         'Status', 'Date Received', 'Date Registered',
         'Certified Date', 'Turnaround (days)', 'Report Resubmissions', 'COA Version',
     ])
@@ -1161,6 +1160,7 @@ def milk_report_download():
             s.sample_name,
             milk_type_label,
             s.volume or '',
+            s.parish or '',
             s.status.value if s.status else '',
             s.date_received.isoformat() if s.date_received else '',
             s.date_registered.strftime('%Y-%m-%d') if s.date_registered else '',
@@ -1337,6 +1337,7 @@ def toxicology_report_download():
     writer = csv.writer(buf)
     writer.writerow([
         'Lab Number', 'Sample Name', 'Sample Type', 'Patient Name',
+        'Hospital', 'Parish',
         'Status', 'Date Received', 'Date Registered',
         'Certified Date', 'Turnaround (working days)', 'Report Resubmissions',
     ])
@@ -1350,6 +1351,8 @@ def toxicology_report_download():
             s.sample_name,
             s.toxicology_sample_type_name or '',
             s.patient_name or '',
+            s.ward_clinic or '',
+            s.parish or '',
             s.status.value if s.status else '',
             s.date_received.isoformat() if s.date_received else '',
             s.date_registered.strftime('%Y-%m-%d') if s.date_registered else '',

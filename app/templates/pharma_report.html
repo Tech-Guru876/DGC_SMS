@@ -146,7 +146,6 @@
                     <th>Status</th>
                     <th>Date Received</th>
                     <th>Registered</th>
-                    <th>Expected Report</th>
                     <th>Certified Date</th>
                     <th>TAT (working days)</th>
                     <th>OOS</th>
@@ -182,7 +181,6 @@
                     </td>
                     <td>{{ s.date_received.strftime('%d %b %Y') if s.date_received else '—' }}</td>
                     <td>{{ s.date_registered.strftime('%d %b %Y') if s.date_registered else '—' }}</td>
-                    <td>{{ s.expected_report_date.strftime('%d %b %Y') if s.expected_report_date else '—' }}</td>
                     <td>{{ s.certified_at.strftime('%d %b %Y') if s.certified_at else '—' }}</td>
                     <td>
                         {% if sample_tat[s.id] is not none %}
