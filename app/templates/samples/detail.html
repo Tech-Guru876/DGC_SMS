@@ -1105,11 +1105,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isCollapsed) header.classList.add('collapsed');
         header.appendChild(icon);
 
-        // Toggle on click
-        header.setAttribute('data-bs-toggle', 'collapse');
-        header.setAttribute('data-bs-target', '#' + sectionId);
+        // Toggle on click – skip if the click originated from an interactive element
+        // (button, link, input, etc.) inside the header so those elements remain clickable.
         header.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
         header.setAttribute('aria-controls', sectionId);
+        header.addEventListener('click', function(e) {
+            if (e.target.closest('a, button, input, select, textarea, label, form')) return;
+            bootstrap.Collapse.getOrCreateInstance(document.getElementById(sectionId)).toggle();
+        });
 
         // Save state on toggle
         wrapper.addEventListener('hidden.bs.collapse', function() {
