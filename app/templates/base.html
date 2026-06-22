@@ -680,7 +680,7 @@
                     </a>
                 </li>
                 {% endif %}
-                {% elif current_user.has_permission(Permission.MANAGE_SETTINGS) or current_user.has_permission(Permission.MANAGE_DROPDOWNS) %}
+                {% elif current_user.has_permission(Permission.MANAGE_SETTINGS) or current_user.has_permission(Permission.MANAGE_DROPDOWNS) or current_user.has_permission(Permission.QC_DATA_DOWNLOAD) %}
                 <li><div class="sidebar-section-label">Admin</div></li>
                 {% if current_user.has_permission(Permission.MANAGE_SETTINGS) %}
                 <li class="nav-item">
@@ -695,6 +695,14 @@
                     <a class="nav-link {% if request.endpoint == 'main.admin_dropdowns' %}active{% endif %}"
                        href="{{ url_for('main.admin_dropdowns') }}">
                         <i class="bi bi-list-ul"></i> Dropdown Config
+                    </a>
+                </li>
+                {% endif %}
+                {% if current_user.has_permission(Permission.QC_DATA_DOWNLOAD) %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'main.qc_downloads' %}active{% endif %}"
+                       href="{{ url_for('main.qc_downloads') }}">
+                        <i class="bi bi-download"></i> QC Downloads
                     </a>
                 </li>
                 {% endif %}
