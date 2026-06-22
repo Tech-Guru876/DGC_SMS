@@ -673,6 +673,12 @@
                         <i class="bi bi-journal-text"></i> Audit Log
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.endpoint == 'main.qc_downloads' %}active{% endif %}"
+                       href="{{ url_for('main.qc_downloads') }}">
+                        <i class="bi bi-download"></i> QC Downloads
+                    </a>
+                </li>
                 {% endif %}
                 {% elif current_user.has_permission(Permission.MANAGE_SETTINGS) or current_user.has_permission(Permission.MANAGE_DROPDOWNS) %}
                 <li><div class="sidebar-section-label">Admin</div></li>
