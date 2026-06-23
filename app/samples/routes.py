@@ -170,6 +170,10 @@ def sample_list():
     status_filter = request.args.get('status')
     type_filter = request.args.get('type')
     search = request.args.get('q', '').strip()
+    # pending_prelim=1 shows samples with ≥1 assignment at REPORT_SUBMITTED,
+    # regardless of the overall Sample.status (which may have been superseded by
+    # a higher-priority assignment state, e.g. UNDER_TECHNICAL_REVIEW).
+    pending_prelim = request.args.get('pending_prelim') == '1'
     sort_by = request.args.get('sort', 'date_received')
     sort_dir = request.args.get('dir', 'desc').lower()
     if sort_dir not in ('asc', 'desc'):
@@ -244,6 +248,16 @@ def sample_list():
         query = query.filter(Sample.patient_name.ilike(f'%{adv_patient_name}%'))
     if adv_alcohol_type:
         query = query.filter(Sample.alcohol_type.ilike(f'%{adv_alcohol_type}%'))
+
+    # pending_prelim: include any sample that has at least one assignment still
+    # at REPORT_SUBMITTED — catches the case where one test has already moved on
+    # to UNDER_TECHNICAL_REVIEW (which overrides Sample.status) while another
+    # test for the same sample is still waiting for preliminary review.
+    if pending_prelim:
+        _prelim_ids = db.select(SampleAssignment.sample_id).where(
+            SampleAssignment.status == AssignmentStatus.REPORT_SUBMITTED
+        ).distinct().scalar_subquery()
+        query = query.filter(Sample.id.in_(_prelim_ids))
 
     # Role-based filtering
     # Officers, Deputies, HOD, and Admins see all samples (no filter).
@@ -323,8 +337,9 @@ def sample_list():
         search=search,
         adv=adv_filters,
         adv_active=adv_active,
+        pending_prelim=pending_prelim,
         result_count=result_count,
-        is_filtered=bool(status_filter or type_filter or search or adv_active),
+        is_filtered=bool(status_filter or type_filter or search or adv_active or pending_prelim),
         today_date=date.today(),
     )
 

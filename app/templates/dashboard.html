@@ -73,7 +73,7 @@
         </div>
     </div>
     <div class="col-sm-6 col-xl-3">
-        <a href="{{ url_for('samples.sample_list', status=['REPORT_SUBMITTED', 'UNDER_PRELIMINARY_REVIEW']) }}"
+        <a href="{{ url_for('samples.sample_list', pending_prelim=1) }}"
            class="text-decoration-none">
         <div class="card stat-card stat-purple h-100 stat-card-link">
             <div class="card-body">
