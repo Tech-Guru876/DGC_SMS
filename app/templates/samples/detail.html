@@ -155,6 +155,39 @@
 </div>
 {% endif %}
 
+<!-- Pending Preliminary Review alert — shown whenever ≥1 assignment is still
+     at REPORT_SUBMITTED, even if the overall sample status has been overridden
+     by a later-stage assignment (e.g. UNDER_TECHNICAL_REVIEW). -->
+{% set prelim_pending_assignments = assignments | selectattr('status.value', 'equalto', 'Report Submitted') | list %}
+{% if prelim_pending_assignments and (
+        current_user.has_any_role(Role.OFFICER, Role.SENIOR_CHEMIST, Role.DEPUTY, Role.HOD, Role.ADMIN)
+        or current_user.has_permission(Permission.PRELIMINARY_REVIEW)
+        or current_user.id == sample.uploaded_by) %}
+<div class="alert alert-warning mb-4">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+            <i class="bi bi-eye me-1"></i>
+            <strong>{{ prelim_pending_assignments | length }} test report{{ 's' if prelim_pending_assignments | length != 1 else '' }} awaiting preliminary review:</strong>
+            <ul class="mb-0 mt-2">
+                {% for a in prelim_pending_assignments %}
+                <li class="mb-1">
+                    <span class="fw-semibold">{{ a.test_name }}</span>
+                    {% if a.chemist %}<span class="text-muted"> — {{ a.chemist.full_name }}</span>{% endif %}
+                    {% if a.report_submitted_at %}
+                    <span class="text-muted small ms-1">(submitted {{ a.report_submitted_at.strftime('%d %b %Y') }})</span>
+                    {% endif %}
+                    <a href="{{ url_for('samples.preliminary_review', assignment_id=a.id) }}"
+                       class="btn btn-sm btn-warning ms-2 py-0 px-2" style="font-size:.78rem;">
+                        <i class="bi bi-clipboard-check me-1"></i>Review
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- HOD Workflow Return Button -->
 {% set non_returnable_statuses = ['Registered', 'Certified', 'Completed', 'Rejected'] %}
 {% if (current_user.has_role(Role.HOD) or current_user.has_permission(Permission.HOD_WORKFLOW_RETURN) or current_user.has_role(Role.ADMIN)) and sv not in non_returnable_statuses %}
