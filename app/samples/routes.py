@@ -1631,26 +1631,19 @@ def preliminary_review(assignment_id):
         flash('This report is not awaiting preliminary review.', 'warning')
         return redirect(url_for('samples.assignment_detail', assignment_id=assignment.id))
 
-    # Determine whether grouped review mode is enabled
-    grouped_mode = Setting.get_bool('preliminary_review_grouped', default=False)
-
-    # In grouped mode: fetch ALL sibling assignments awaiting preliminary review
-    # so the officer can choose which ones to include (like the submit_report workflow).
-    # In per-test mode: only include this specific assignment.
-    if grouped_mode:
-        all_pending_assignments = SampleAssignment.query.filter(
-            SampleAssignment.sample_id == assignment.sample_id,
-            SampleAssignment.status == AssignmentStatus.REPORT_SUBMITTED,
-        ).all()
-    else:
-        all_pending_assignments = [assignment]
+    # Always fetch ALL sibling assignments awaiting preliminary review so the
+    # officer can choose which ones to include (like the submit_report workflow).
+    all_pending_assignments = SampleAssignment.query.filter(
+        SampleAssignment.sample_id == assignment.sample_id,
+        SampleAssignment.status == AssignmentStatus.REPORT_SUBMITTED,
+    ).all()
 
     form = PreliminaryReviewForm()
     if form.validate_on_submit():
         action = form.action.data
 
-        # Resolve which assignments the officer selected (grouped mode only)
-        if grouped_mode and len(all_pending_assignments) > 1:
+        # Resolve which assignments the officer selected
+        if len(all_pending_assignments) > 1:
             selected_ids_raw = request.form.getlist('assignment_ids')
             if selected_ids_raw:
                 selected_ids = set()
@@ -1677,7 +1670,6 @@ def preliminary_review(assignment_id):
                 assignment=assignment,
                 all_pending_assignments=all_pending_assignments,
                 sibling_assignments=sibling_assignments,
-                grouped_mode=grouped_mode,
             )
 
         now = jamaica_now()
@@ -1704,7 +1696,7 @@ def preliminary_review(assignment_id):
         )
 
         return_scope = form.return_scope.data or 'single'
-        if action == 'returned' and grouped_mode:
+        if action == 'returned' and len(sibling_assignments) > 1:
             if return_scope == 'all':
                 target_assignments = sibling_assignments
             else:
@@ -1802,7 +1794,6 @@ def preliminary_review(assignment_id):
         'samples/preliminary_review.html', form=form,
         assignment=assignment, sibling_assignments=all_pending_assignments,
         all_pending_assignments=all_pending_assignments,
-        grouped_mode=grouped_mode,
     )
 
 

@@ -28,7 +28,7 @@
                     {{ assignment.sample.lab_number }} &mdash; {{ assignment.test_name }}
                     &mdash; Analyst: {{ assignment.chemist.full_name if assignment.chemist else 'Unknown' }}
                 </small>
-                {% if not grouped_mode %}
+                {% if all_pending_assignments|length == 1 %}
                 <div class="mt-2">
                     <span class="badge bg-secondary">
                         <i class="bi bi-file-earmark-text me-1"></i>Per-test review — reviewing this test only
@@ -82,8 +82,8 @@
                 <form method="POST" id="prelimReviewForm">
                     {{ form.hidden_tag() }}
 
-                    {# ── Test Selection (grouped mode with multiple pending tests) ── #}
-                    {% if grouped_mode and all_pending_assignments and all_pending_assignments|length > 1 %}
+                    {# ── Test Selection (multiple pending tests) ── #}
+                    {% if all_pending_assignments and all_pending_assignments|length > 1 %}
                     <div class="mb-4">
                         <label class="form-label fw-semibold"><i class="bi bi-check2-square me-1"></i>Select Tests to Review</label>
                         <div class="border rounded p-3 bg-light">
@@ -101,7 +101,7 @@
                                 <input class="form-check-input review-test-checkbox" type="checkbox"
                                        name="assignment_ids" value="{{ a.id }}"
                                        id="rev_asgn_{{ a.id }}"
-                                       {% if a.id == assignment.id or all_pending_assignments|length == 1 %}checked{% else %}checked{% endif %}>
+                                       checked>
                                 <label class="form-check-label" for="rev_asgn_{{ a.id }}">
                                     <span class="badge bg-info text-dark me-1">{{ a.test_name }}</span>
                                     {% if a.chemist %}<small class="text-muted">— {{ a.chemist.full_name }}</small>{% endif %}
@@ -112,8 +112,8 @@
                         </div>
                         <div class="form-text">Select which tests this review covers. Unselected tests can be reviewed separately later.</div>
                     </div>
-                    {% elif grouped_mode and all_pending_assignments and all_pending_assignments|length == 1 %}
-                    {# Single pending test in grouped mode — include it implicitly #}
+                    {% elif all_pending_assignments and all_pending_assignments|length == 1 %}
+                    {# Single pending test — include it implicitly #}
                     <input type="hidden" name="assignment_ids" value="{{ all_pending_assignments[0].id }}">
                     {% endif %}
 
@@ -169,7 +169,7 @@
                             {{ form.review_comments.label(class="form-label fw-semibold") }}
                             {{ form.review_comments(class="form-control", rows=4, placeholder="Enter review comments (required for corrections)") }}
                         </div>
-                        {% if grouped_mode and all_pending_assignments and all_pending_assignments|length > 1 %}
+                        {% if all_pending_assignments and all_pending_assignments|length > 1 %}
                         <div class="col-12 d-none" id="returnScopeContainer">
                             {{ form.return_scope.label(class="form-label fw-semibold") }}
                             {{ form.return_scope(class="form-select") }}
@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function checkNoBlocking() {
         var hasNo = false;
         document.querySelectorAll('.checklist-radio[value="no"]:checked').forEach(function() { hasNo = true; });
-        var actionSelect = document.getElementById('reviewAction');
+        var actionSelect = document.getElementById('action');
         var warning = document.getElementById('noBlockWarning');
         var approveOption = actionSelect ? actionSelect.querySelector('option[value="approved"]') : null;
         if (hasNo) {
