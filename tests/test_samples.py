@@ -565,7 +565,6 @@ def test_preliminary_grouped_return_only_returns_selected_assignment(app, client
     client.get('/auth/logout')
 
     with app.app_context():
-        Setting.set('preliminary_review_grouped', 'true')
         db.session.commit()
 
     _login(client, 'officer')
@@ -579,8 +578,6 @@ def test_preliminary_grouped_return_only_returns_selected_assignment(app, client
         assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
         assert assignments[0].status == AssignmentStatus.RETURNED
         assert assignments[1].status == AssignmentStatus.REPORT_SUBMITTED
-        Setting.set('preliminary_review_grouped', 'false')
-        db.session.commit()
 
 
 def test_preliminary_grouped_return_can_return_all_assignments(app, client):
@@ -613,30 +610,70 @@ def test_preliminary_grouped_return_can_return_all_assignments(app, client):
     }, content_type='multipart/form-data', follow_redirects=True)
     client.get('/auth/logout')
 
+    _login(client, 'officer')
     with app.app_context():
-        Setting.set('preliminary_review_grouped', 'true')
-        db.session.commit()
+        assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+        all_ids = [a.id for a in assignments]
+    resp = client.post(f'/samples/assignment/{first_assignment_id}/preliminary-review', data={
+        'action': 'returned',
+        'return_scope': 'all',
+        'assignment_ids': all_ids,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
 
-    try:
-        _login(client, 'officer')
-        with app.app_context():
-            assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
-            all_ids = [a.id for a in assignments]
-        resp = client.post(f'/samples/assignment/{first_assignment_id}/preliminary-review', data={
-            'action': 'returned',
-            'return_scope': 'all',
-            'assignment_ids': all_ids,
-        }, follow_redirects=True)
-        assert resp.status_code == 200
+    with app.app_context():
+        assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+        assert assignments[0].status == AssignmentStatus.RETURNED
+        assert assignments[1].status == AssignmentStatus.RETURNED
 
-        with app.app_context():
-            assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
-            assert assignments[0].status == AssignmentStatus.RETURNED
-            assert assignments[1].status == AssignmentStatus.RETURNED
-    finally:
-        with app.app_context():
-            Setting.set('preliminary_review_grouped', 'false')
-            db.session.commit()
+
+def test_preliminary_review_approve_multiple_reports(app, client):
+    """Preliminary review can approve multiple reports at once without grouped setting."""
+    officer_id, sc_id, chemist_id, deputy_id, hod_id = _setup_users(app)
+    _login(client, 'officer')
+    _register_sample(client)
+    client.get('/auth/logout')
+
+    _login(client, 'senior')
+    with app.app_context():
+        sample = Sample.query.first()
+    client.post(f'/samples/{sample.id}/assign', data={
+        'chemist_ids': [chemist_id],
+        'test_name': 'Test A',
+    }, follow_redirects=True)
+    client.post(f'/samples/{sample.id}/assign', data={
+        'chemist_ids': [chemist_id],
+        'test_name': 'Test B',
+    }, follow_redirects=True)
+    client.get('/auth/logout')
+
+    _login(client, 'chemist')
+    with app.app_context():
+        assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+        first_assignment_id = assignments[0].id
+    client.post(f'/samples/assignment/{first_assignment_id}/report', data={
+        'report_text': 'Combined report.',
+        'report_file': _report_file(),
+    }, content_type='multipart/form-data', follow_redirects=True)
+    client.get('/auth/logout')
+
+    # Officer approves both reports without needing grouped setting
+    _login(client, 'officer')
+    with app.app_context():
+        assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+        all_ids = [a.id for a in assignments]
+    resp = client.post(f'/samples/assignment/{first_assignment_id}/preliminary-review', data={
+        'action': 'approved',
+        'assignment_ids': all_ids,
+        'review_comments': 'Both tests look good.',
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b'2 reports have been approved and forwarded' in resp.data
+
+    with app.app_context():
+        assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+        assert assignments[0].status == AssignmentStatus.UNDER_TECHNICAL_REVIEW
+        assert assignments[1].status == AssignmentStatus.UNDER_TECHNICAL_REVIEW
 
 
 def test_technical_review_return(app, client):
