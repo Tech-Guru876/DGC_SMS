@@ -1170,9 +1170,11 @@ def edit_assignment(assignment_id):
 def upload_supporting_document(sample_id):
     sample = db.get_or_404(Sample, sample_id)
 
-    # Only Officers, Admin, HOD, GC Assistants, or the sample uploader may add documents
+    # Only users with the ADD_SUPPORTING_DOCUMENT permission, Officers, Admin,
+    # HOD, GC Assistants, or the sample uploader may add documents
     if not (
-        current_user.has_any_role(Role.OFFICER, Role.ADMIN, Role.HOD, Role.GOVT_CHEMIST_ASSISTANT)
+        current_user.has_permission(Permission.ADD_SUPPORTING_DOCUMENT)
+        or current_user.has_any_role(Role.OFFICER, Role.ADMIN, Role.HOD, Role.GOVT_CHEMIST_ASSISTANT)
         or current_user.id == sample.uploaded_by
     ):
         flash('Access denied.', 'danger')
@@ -1632,21 +1634,39 @@ def preliminary_review(assignment_id):
     # Determine whether grouped review mode is enabled
     grouped_mode = Setting.get_bool('preliminary_review_grouped', default=False)
 
-    # Find sibling assignments for the same sample that are also awaiting
-    # preliminary review (REPORT_SUBMITTED).
-    # In grouped mode: include ALL sibling assignments for the sample.
+    # In grouped mode: fetch ALL sibling assignments awaiting preliminary review
+    # so the officer can choose which ones to include (like the submit_report workflow).
     # In per-test mode: only include this specific assignment.
     if grouped_mode:
-        sibling_assignments = SampleAssignment.query.filter(
+        all_pending_assignments = SampleAssignment.query.filter(
             SampleAssignment.sample_id == assignment.sample_id,
             SampleAssignment.status == AssignmentStatus.REPORT_SUBMITTED,
         ).all()
     else:
-        sibling_assignments = [assignment]
+        all_pending_assignments = [assignment]
 
     form = PreliminaryReviewForm()
     if form.validate_on_submit():
         action = form.action.data
+
+        # Resolve which assignments the officer selected (grouped mode only)
+        if grouped_mode and len(all_pending_assignments) > 1:
+            selected_ids_raw = request.form.getlist('assignment_ids')
+            if selected_ids_raw:
+                selected_ids = set()
+                for x in selected_ids_raw:
+                    try:
+                        selected_ids.add(int(x))
+                    except (ValueError, TypeError):
+                        pass
+                sibling_assignments = [a for a in all_pending_assignments if a.id in selected_ids]
+            else:
+                sibling_assignments = []
+            if not sibling_assignments:
+                # No IDs posted (e.g. direct API call) — fall back to current assignment only
+                sibling_assignments = [assignment]
+        else:
+            sibling_assignments = all_pending_assignments
 
         # Validation: If any checklist item is "No", only allow return
         if form.has_any_no() and action == 'approved':
@@ -1655,6 +1675,7 @@ def preliminary_review(assignment_id):
             return render_template(
                 'samples/preliminary_review.html', form=form,
                 assignment=assignment,
+                all_pending_assignments=all_pending_assignments,
                 sibling_assignments=sibling_assignments,
                 grouped_mode=grouped_mode,
             )
@@ -1779,7 +1800,8 @@ def preliminary_review(assignment_id):
 
     return render_template(
         'samples/preliminary_review.html', form=form,
-        assignment=assignment, sibling_assignments=sibling_assignments,
+        assignment=assignment, sibling_assignments=all_pending_assignments,
+        all_pending_assignments=all_pending_assignments,
         grouped_mode=grouped_mode,
     )
 

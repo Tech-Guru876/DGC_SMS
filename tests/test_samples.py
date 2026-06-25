@@ -619,9 +619,13 @@ def test_preliminary_grouped_return_can_return_all_assignments(app, client):
 
     try:
         _login(client, 'officer')
+        with app.app_context():
+            assignments = SampleAssignment.query.order_by(SampleAssignment.id).all()
+            all_ids = [a.id for a in assignments]
         resp = client.post(f'/samples/assignment/{first_assignment_id}/preliminary-review', data={
             'action': 'returned',
             'return_scope': 'all',
+            'assignment_ids': all_ids,
         }, follow_redirects=True)
         assert resp.status_code == 200
 

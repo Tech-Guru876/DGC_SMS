@@ -502,6 +502,7 @@ _ROLE_INHERENT_PERMISSIONS: dict[Role, set[Permission]] = {
         Permission.KPI_VIEW,
         Permission.INVOICE_GENERATE,
         Permission.MANAGE_DROPDOWNS,
+        Permission.ADD_SUPPORTING_DOCUMENT,
     },
     Role.DEPUTY: {
         Permission.DEPUTY_REVIEW,
@@ -523,12 +524,14 @@ _ROLE_INHERENT_PERMISSIONS: dict[Role, set[Permission]] = {
         Permission.ASSIGN_SAMPLE,
         Permission.SUBMIT_REPORT,
         Permission.INVOICE_GENERATE,
+        Permission.ADD_SUPPORTING_DOCUMENT,
     },
     Role.CHEMIST: {
         Permission.SUBMIT_REPORT,
     },
     Role.GOVT_CHEMIST_ASSISTANT: {
         Permission.SUBMIT_REPORT,
+        Permission.ADD_SUPPORTING_DOCUMENT,
     },
     Role.SUPER_ADMIN: set(Permission),    # SuperAdmin has ALL permissions
     # Procurement / Stores Management roles — no inherent permissions in the
