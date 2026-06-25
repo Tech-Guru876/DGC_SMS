@@ -111,6 +111,7 @@ class Permission(enum.Enum):
     SAMPLE_COMMENT_ADD      = 'Add Sample Comments'
     SAMPLE_COMMENT_EDIT     = 'Edit Sample Comments'
     SAMPLE_COMMENT_DELETE   = 'Delete Sample Comments'
+    ADD_SUPPORTING_DOCUMENT = 'Add Supporting Documents'
 
 
 # ---------------------------------------------------------------------------

@@ -28,18 +28,7 @@
                     {{ assignment.sample.lab_number }} &mdash; {{ assignment.test_name }}
                     &mdash; Analyst: {{ assignment.chemist.full_name if assignment.chemist else 'Unknown' }}
                 </small>
-                {% if sibling_assignments|length > 1 %}
-                <div class="mt-2">
-                    <span class="badge bg-info text-dark">
-                        <i class="bi bi-layers me-1"></i>Grouped review — applies to {{ sibling_assignments|length }} test(s):
-                    </span>
-                    <ul class="mb-0 mt-1 small">
-                        {% for sa in sibling_assignments %}
-                        <li>{{ sa.test_name }}{% if sa.chemist %} — {{ sa.chemist.full_name }}{% endif %}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% elif not grouped_mode %}
+                {% if not grouped_mode %}
                 <div class="mt-2">
                     <span class="badge bg-secondary">
                         <i class="bi bi-file-earmark-text me-1"></i>Per-test review — reviewing this test only
@@ -93,6 +82,41 @@
                 <form method="POST" id="prelimReviewForm">
                     {{ form.hidden_tag() }}
 
+                    {# ── Test Selection (grouped mode with multiple pending tests) ── #}
+                    {% if grouped_mode and all_pending_assignments and all_pending_assignments|length > 1 %}
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold"><i class="bi bi-check2-square me-1"></i>Select Tests to Review</label>
+                        <div class="border rounded p-3 bg-light">
+                            <div class="mb-2 d-flex gap-2">
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="select-all-tests-btn">
+                                    <i class="bi bi-check-all me-1"></i>Select All
+                                </button>
+                                <span class="text-muted">|</span>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="deselect-all-tests-btn">
+                                    <i class="bi bi-x-square me-1"></i>Deselect All
+                                </button>
+                            </div>
+                            {% for a in all_pending_assignments %}
+                            <div class="form-check ms-1 mb-1">
+                                <input class="form-check-input review-test-checkbox" type="checkbox"
+                                       name="assignment_ids" value="{{ a.id }}"
+                                       id="rev_asgn_{{ a.id }}"
+                                       {% if a.id == assignment.id or all_pending_assignments|length == 1 %}checked{% else %}checked{% endif %}>
+                                <label class="form-check-label" for="rev_asgn_{{ a.id }}">
+                                    <span class="badge bg-info text-dark me-1">{{ a.test_name }}</span>
+                                    {% if a.chemist %}<small class="text-muted">— {{ a.chemist.full_name }}</small>{% endif %}
+                                    {% if a.id == assignment.id %}<span class="badge bg-primary ms-1" style="font-size:.7rem;">Current</span>{% endif %}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">Select which tests this review covers. Unselected tests can be reviewed separately later.</div>
+                    </div>
+                    {% elif grouped_mode and all_pending_assignments and all_pending_assignments|length == 1 %}
+                    {# Single pending test in grouped mode — include it implicitly #}
+                    <input type="hidden" name="assignment_ids" value="{{ all_pending_assignments[0].id }}">
+                    {% endif %}
+
                     <!-- Select All Controls -->
                     <div class="mb-3 d-flex gap-2">
                         <button type="button" class="btn btn-sm btn-outline-success" id="selectAllYes">
@@ -145,11 +169,11 @@
                             {{ form.review_comments.label(class="form-label fw-semibold") }}
                             {{ form.review_comments(class="form-control", rows=4, placeholder="Enter review comments (required for corrections)") }}
                         </div>
-                        {% if grouped_mode and sibling_assignments|length > 1 %}
+                        {% if grouped_mode and all_pending_assignments and all_pending_assignments|length > 1 %}
                         <div class="col-12 d-none" id="returnScopeContainer">
                             {{ form.return_scope.label(class="form-label fw-semibold") }}
                             {{ form.return_scope(class="form-select") }}
-                            <div class="form-text">Choose whether to return only this report or all grouped reports.</div>
+                            <div class="form-text">Choose whether to return only this report or all selected reports.</div>
                         </div>
                         {% endif %}
 
@@ -209,11 +233,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.checklist-radio[value="no"]:checked').forEach(function() { hasNo = true; });
         var actionSelect = document.getElementById('reviewAction');
         var warning = document.getElementById('noBlockWarning');
-        var approveOption = actionSelect.querySelector('option[value="approved"]');
+        var approveOption = actionSelect ? actionSelect.querySelector('option[value="approved"]') : null;
         if (hasNo) {
             warning.classList.remove('d-none');
             if (approveOption) approveOption.disabled = true;
-            if (actionSelect.value === 'approved') actionSelect.value = '';
+            if (actionSelect && actionSelect.value === 'approved') actionSelect.value = '';
         } else {
             warning.classList.add('d-none');
             if (approveOption) approveOption.disabled = false;
@@ -243,6 +267,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (actionSelect) {
         actionSelect.addEventListener('change', toggleReturnScope);
         toggleReturnScope();
+    }
+
+    // Test selection: Select All / Deselect All
+    var selectAllTestsBtn = document.getElementById('select-all-tests-btn');
+    var deselectAllTestsBtn = document.getElementById('deselect-all-tests-btn');
+    if (selectAllTestsBtn) {
+        selectAllTestsBtn.addEventListener('click', function() {
+            document.querySelectorAll('.review-test-checkbox').forEach(function(cb) { cb.checked = true; });
+        });
+    }
+    if (deselectAllTestsBtn) {
+        deselectAllTestsBtn.addEventListener('click', function() {
+            document.querySelectorAll('.review-test-checkbox').forEach(function(cb) { cb.checked = false; });
+        });
     }
 });
 </script>
