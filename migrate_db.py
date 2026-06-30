@@ -138,6 +138,8 @@ MIGRATIONS = [
     ('audit_log', 'ip_address', 'VARCHAR(45)'),
     ('audit_log', 'user_agent', 'VARCHAR(500)'),
     ('audit_log', 'success', 'BOOLEAN DEFAULT 1'),
+    # Accreditation status (Deputy selects before certifying)
+    ('samples', 'is_accredited', 'BOOLEAN'),
 ]
 
 NEW_TABLES = [
@@ -386,6 +388,19 @@ NEW_TABLES = [
         '  is_deleted BOOLEAN DEFAULT 0,'
         '  deleted_by INTEGER REFERENCES users(id),'
         '  deleted_at DATETIME'
+        ')',
+    ),
+    # Sample Images
+    (
+        'sample_images',
+        'CREATE TABLE IF NOT EXISTS sample_images ('
+        '  id INTEGER PRIMARY KEY AUTOINCREMENT,'
+        '  sample_id INTEGER NOT NULL REFERENCES samples(id),'
+        '  file_path VARCHAR(500) NOT NULL,'
+        '  original_name VARCHAR(255) NOT NULL,'
+        '  caption VARCHAR(500),'
+        '  uploaded_by INTEGER NOT NULL REFERENCES users(id),'
+        '  uploaded_at DATETIME'
         ')',
     ),
 ]

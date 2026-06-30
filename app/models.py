@@ -539,6 +539,10 @@ class Sample(db.Model):
     manufacturer = db.Column(db.String(255), nullable=True)
     api = db.Column(db.String(255), nullable=True)
 
+    # Accreditation status (selected by Deputy Government Chemist before
+    # certifying – primarily for pharmaceutical samples). None = not yet set.
+    is_accredited = db.Column(db.Boolean, nullable=True)
+
     # Food (Alcohol) specific
     alcohol_type = db.Column(db.String(100), nullable=True)
     claim_butt_number = db.Column(db.String(100), nullable=True)
@@ -1095,6 +1099,39 @@ class SupportingDocument(db.Model):
 
     def __repr__(self):
         return f'<SupportingDocument {self.original_name} for Sample {self.sample_id}>'
+
+
+# ---------------------------------------------------------------------------
+# Sample Image (photographs of a sample – previewed on the detail page)
+# ---------------------------------------------------------------------------
+
+class SampleImage(db.Model):
+    """Image files (photographs) uploaded for a sample.
+
+    Used primarily for pharmaceutical samples so that users can view
+    pictures of the physical sample alongside the submission form.
+    """
+    __tablename__ = 'sample_images'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sample_id = db.Column(
+        db.Integer, db.ForeignKey('samples.id'), nullable=False
+    )
+    file_path = db.Column(db.String(500), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)
+    caption = db.Column(db.String(500), nullable=True)
+    uploaded_by = db.Column(
+        db.Integer, db.ForeignKey('users.id'), nullable=False
+    )
+    uploaded_at = db.Column(db.DateTime, default=jamaica_now)
+
+    sample = db.relationship('Sample', backref=db.backref(
+        'images', lazy='dynamic', cascade='all, delete-orphan'
+    ))
+    uploader = db.relationship('User', foreign_keys=[uploaded_by])
+
+    def __repr__(self):
+        return f'<SampleImage {self.original_name} for Sample {self.sample_id}>'
 
 
 # ---------------------------------------------------------------------------

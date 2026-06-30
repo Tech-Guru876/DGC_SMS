@@ -2491,3 +2491,85 @@ def test_dashboard_filter_by_sample_name(app, client):
     assert resp.status_code == 200
     assert b'Unique Alpha Drug' in resp.data
     assert b'Beta Drug' not in resp.data
+
+
+# A 1x1 PNG image for use in image-upload tests
+_MINIMAL_PNG = (
+    b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+    b'\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00'
+    b'\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+)
+
+
+def _png_file():
+    return (io.BytesIO(_MINIMAL_PNG), 'sample.png')
+
+
+def test_deputy_sets_accreditation_on_prepare_certificate(app, client):
+    """Deputy can mark a sample accredited while preparing the certificate."""
+    officer_id, _sc, _ch, _dep, _hod = _setup_users(app)
+    sid = _create_sample_direct(
+        app, uploaded_by=officer_id,
+        status=SampleStatus.CERTIFICATE_PREPARATION,
+    )
+
+    _login(client, 'deputy')
+    resp = client.post(f'/samples/{sid}/prepare-certificate', data={
+        'certificate_text': 'Certified analysis.',
+        'accreditation': 'accredited',
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        sample = db.session.get(Sample, sid)
+        assert sample.is_accredited is True
+        assert sample.status == SampleStatus.HOD_REVIEW
+
+
+def test_accredited_icon_shown_on_sample_list(app, client):
+    """An accredited sample displays the verification icon on the list."""
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        s = Sample(lab_number='PH/ACC', sample_name='Accredited Drug',
+                   sample_type=Branch.PHARMACEUTICAL, date_received=date.today(),
+                   date_registered=datetime.utcnow(),
+                   status=SampleStatus.CERTIFIED, is_accredited=True,
+                   uploaded_by=officer_id)
+        db.session.add(s)
+        db.session.commit()
+
+    _login(client, 'officer')
+    resp = client.get('/samples/')
+    assert resp.status_code == 200
+    assert b'bi-patch-check-fill' in resp.data
+
+
+def test_upload_and_delete_sample_image(app, client):
+    """A sample image can be uploaded, previewed, and removed."""
+    from app.models import SampleImage
+    officer_id, *_ = _setup_users(app)
+    sid = _create_sample_direct(app, uploaded_by=officer_id)
+
+    _login(client, 'officer')
+    resp = client.post(
+        f'/samples/{sid}/upload-image',
+        data={'image': _png_file(), 'caption': 'Front view'},
+        content_type='multipart/form-data', follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    with app.app_context():
+        images = SampleImage.query.filter_by(sample_id=sid).all()
+        assert len(images) == 1
+        assert images[0].caption == 'Front view'
+        image_id = images[0].id
+
+    # Image preview appears on detail page
+    resp = client.get(f'/samples/{sid}')
+    assert b'Sample Images' in resp.data
+
+    # Delete the image
+    resp = client.post(
+        f'/samples/{sid}/images/{image_id}/delete', follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    with app.app_context():
+        assert SampleImage.query.filter_by(sample_id=sid).count() == 0

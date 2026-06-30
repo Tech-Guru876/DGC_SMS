@@ -14,6 +14,7 @@ from app import db
 from app.samples import samples_bp
 from app.models import (
     Sample, SampleAssignment, SampleHistory, User, SupportingDocument,
+    SampleImage,
     Role, Branch, SampleStatus, AssignmentStatus, Permission,
     user_roles, user_branches, jamaica_now,
     DocumentVersion, ReviewHistory, BackDateRequest,
@@ -28,6 +29,7 @@ from app.forms import (
     ReportSubmitForm, PreliminaryReviewForm, ReportReviewForm,
     SubmitToDeputyForm, DeputyReviewForm, CertificateForm, HODReviewForm,
     get_sample_register_form, SupportingDocumentForm, BackDateRequestForm,
+    SampleImageForm,
     DeleteRequestForm, COADecertifyForm, COAReissueForm,
     InvoiceCreateForm, InvoiceItemForm,
     BRANCH_TEST_NAMES, BRANCH_TEST_REFERENCES,
@@ -559,6 +561,10 @@ def detail(sample_id):
         SupportingDocument.uploaded_at.desc()
     ).all()
     supporting_doc_form = SupportingDocumentForm()
+    sample_images = sample.images.order_by(
+        SampleImage.uploaded_at.desc()
+    ).all()
+    sample_image_form = SampleImageForm()
     document_versions = sample.document_versions.order_by(
         DocumentVersion.document_type, DocumentVersion.version_number.desc()
     ).all() if hasattr(sample, 'document_versions') else []
@@ -578,6 +584,8 @@ def detail(sample_id):
         history_pagination=history_pagination,
         supporting_docs=supporting_docs,
         supporting_doc_form=supporting_doc_form,
+        sample_images=sample_images,
+        sample_image_form=sample_image_form,
         today_date=date.today(),
         document_versions=document_versions,
         review_histories=review_pagination.items,
@@ -1217,6 +1225,111 @@ def upload_supporting_document(sample_id):
     return render_template(
         'samples/upload_supporting_doc.html', form=form, sample=sample
     )
+
+
+# ---------------------------------------------------------------------------
+# Sample images upload / delete (previewed on the detail page)
+# ---------------------------------------------------------------------------
+
+def _can_manage_sample_images(sample):
+    """Return True if the current user may add/remove images for a sample."""
+    return (
+        current_user.has_permission(Permission.ADD_SUPPORTING_DOCUMENT)
+        or current_user.has_any_role(
+            Role.OFFICER, Role.ADMIN, Role.HOD, Role.DEPUTY,
+            Role.SENIOR_CHEMIST, Role.GOVT_CHEMIST_ASSISTANT,
+        )
+        or current_user.id == sample.uploaded_by
+    )
+
+
+@samples_bp.route('/<int:sample_id>/upload-image', methods=['POST'])
+@login_required
+def upload_sample_image(sample_id):
+    sample = db.get_or_404(Sample, sample_id)
+
+    if not _can_manage_sample_images(sample):
+        flash('Access denied.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    form = SampleImageForm()
+    if form.validate_on_submit():
+        stored, original = _save_file(form.image.data)
+        image = SampleImage(
+            sample_id=sample.id,
+            file_path=stored,
+            original_name=original,
+            caption=form.caption.data or None,
+            uploaded_by=current_user.id,
+        )
+        db.session.add(image)
+        _add_history(
+            sample, 'Sample Image Uploaded',
+            f'{current_user.full_name} uploaded image "{original}"',
+            action_type='Image Upload',
+            object_affected='Sample Image',
+            change_description=f'Image: {original} (uploaded by {current_user.full_name})',
+        )
+        db.session.add(AuditLog(
+            action='SAMPLE_IMAGE_UPLOADED',
+            entity_type='Sample',
+            entity_id=sample.id,
+            entity_label=sample.lab_number,
+            details=json.dumps({
+                'lab_number': sample.lab_number,
+                'file_name': original,
+                'caption': form.caption.data or None,
+                'uploaded_by': current_user.full_name,
+            }),
+            performed_by=current_user.id,
+        ))
+        db.session.commit()
+        flash('Sample image uploaded.', 'success')
+    else:
+        for errors in form.errors.values():
+            for error in errors:
+                flash(error, 'danger')
+
+    return redirect(url_for('samples.detail', sample_id=sample.id) + '#sample-images')
+
+
+@samples_bp.route('/<int:sample_id>/images/<int:image_id>/delete', methods=['POST'])
+@login_required
+def delete_sample_image(sample_id, image_id):
+    sample = db.get_or_404(Sample, sample_id)
+    image = db.get_or_404(SampleImage, image_id)
+
+    if image.sample_id != sample.id:
+        abort(404)
+
+    if not _can_manage_sample_images(sample):
+        flash('Access denied.', 'danger')
+        return redirect(url_for('samples.detail', sample_id=sample.id))
+
+    original = image.original_name
+    db.session.delete(image)
+    _add_history(
+        sample, 'Sample Image Removed',
+        f'{current_user.full_name} removed image "{original}"',
+        action_type='Image Removal',
+        object_affected='Sample Image',
+        change_description=f'Image: {original} (removed by {current_user.full_name})',
+    )
+    db.session.add(AuditLog(
+        action='SAMPLE_IMAGE_DELETED',
+        entity_type='Sample',
+        entity_id=sample.id,
+        entity_label=sample.lab_number,
+        details=json.dumps({
+            'lab_number': sample.lab_number,
+            'file_name': original,
+            'removed_by': current_user.full_name,
+        }),
+        performed_by=current_user.id,
+    ))
+    db.session.commit()
+    flash('Sample image removed.', 'success')
+    return redirect(url_for('samples.detail', sample_id=sample.id) + '#sample-images')
 
 
 # ---------------------------------------------------------------------------
@@ -2295,6 +2408,11 @@ def prepare_certificate(sample_id):
         sample.certificate_prepared_at = jamaica_now()
         sample.coa_reference = form.coa_reference.data or sample.coa_reference
 
+        if form.accreditation.data == 'accredited':
+            sample.is_accredited = True
+        elif form.accreditation.data == 'not_accredited':
+            sample.is_accredited = False
+
         if form.certificate_file.data:
             stored, original = _save_file(form.certificate_file.data)
             sample.certificate_file = stored
@@ -2357,6 +2475,10 @@ def prepare_certificate(sample_id):
         form.certificate_text.data = sample.certificate_text
     if request.method == 'GET' and sample.coa_reference:
         form.coa_reference.data = sample.coa_reference
+    if request.method == 'GET' and sample.is_accredited is not None:
+        form.accreditation.data = (
+            'accredited' if sample.is_accredited else 'not_accredited'
+        )
 
     return render_template(
         'samples/prepare_certificate.html', form=form, sample=sample,
@@ -2958,6 +3080,11 @@ def _delete_sample_files(sample):
     for doc in sample.supporting_documents.all():
         if doc.file_path:
             paths_to_remove.add(doc.file_path)
+
+    # Sample images
+    for img in sample.images.all():
+        if img.file_path:
+            paths_to_remove.add(img.file_path)
 
     # Document versions
     for dv in sample.document_versions.all():
