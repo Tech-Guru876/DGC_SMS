@@ -1048,6 +1048,15 @@ class DeputyReviewForm(FlaskForm):
 
 class CertificateForm(FlaskForm):
     """Deputy Government Chemist prepares Certificate of Analysis."""
+    accreditation = SelectField(
+        'Accreditation Status',
+        choices=[
+            ('', '-- Select Accreditation --'),
+            ('accredited', 'Accredited'),
+            ('not_accredited', 'Not Accredited'),
+        ],
+        validators=[Optional()],
+    )
     certificate_text = TextAreaField(
         'Certificate of Analysis', validators=[DataRequired()]
     )
@@ -1094,6 +1103,22 @@ class SupportingDocumentForm(FlaskForm):
     )
     description = StringField('Description', validators=[Optional(), Length(max=500)])
     submit = SubmitField('Upload Document')
+
+
+class SampleImageForm(FlaskForm):
+    """Form for uploading image(s) of a sample (previewed on detail page)."""
+    image = FileField(
+        'Sample Image',
+        validators=[
+            DataRequired(message='Please select an image to upload.'),
+            FileAllowed(
+                ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'],
+                'Only image files (PNG, JPG, JPEG, GIF, BMP, TIFF) are allowed.'
+            ),
+        ],
+    )
+    caption = StringField('Caption', validators=[Optional(), Length(max=500)])
+    submit = SubmitField('Upload Image')
 
 
 class NonWorkingDayForm(FlaskForm):

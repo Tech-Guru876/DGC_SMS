@@ -92,6 +92,17 @@
                             {% endfor %}
                         </div>
 
+                        <div class="col-md-6">
+                            {{ form.accreditation.label(class="form-label fw-semibold") }}
+                            {{ form.accreditation(class="form-select") }}
+                            <div class="form-text">
+                                <i class="bi bi-patch-check-fill text-success me-1"></i>Mark whether this sample is accredited before certifying.
+                            </div>
+                            {% for error in form.accreditation.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
                         <div class="col-12 d-flex gap-2 pt-2">
                             {{ form.submit(class="btn btn-primary") }}
                             <a href="{{ url_for('samples.detail', sample_id=sample.id) }}"
