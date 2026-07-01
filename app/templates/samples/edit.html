@@ -150,6 +150,19 @@
                             {% endif %}
                         </div>
 
+                        {% if can_edit_accreditation %}
+                        <div class="col-md-6">
+                            {{ form.accreditation.label(class="form-label fw-semibold") }}
+                            {{ form.accreditation(class="form-select") }}
+                            <div class="form-text">
+                                <i class="bi bi-patch-check-fill text-success me-1"></i>Update the accreditation status of this sample.
+                            </div>
+                            {% for error in form.accreditation.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
                         <div class="col-12 d-flex gap-2 pt-2">
                             {{ form.submit(class="btn btn-primary") }}
                             <a href="{{ url_for('samples.detail', sample_id=sample.id) }}" class="btn btn-outline-secondary">Cancel</a>

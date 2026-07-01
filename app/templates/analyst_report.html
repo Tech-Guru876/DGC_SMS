@@ -302,6 +302,10 @@
                     <td>
                         <a href="{{ url_for('samples.detail', sample_id=a.sample.id) }}"
                            class="text-decoration-none fw-semibold">{{ a.sample.lab_number }}</a>
+                        {% if a.sample.is_accredited %}
+                        <i class="bi bi-patch-check-fill text-success ms-1"
+                           title="Accredited" data-bs-toggle="tooltip"></i>
+                        {% endif %}
                     </td>
                     <td>{{ a.sample.sample_name }}</td>
                     <td><span class="badge bg-info text-dark">{{ a.sample.sample_type.value }}</span></td>

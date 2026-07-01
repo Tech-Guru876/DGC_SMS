@@ -746,6 +746,15 @@ class SampleEditForm(FlaskForm):
             'Only PDF, image, and Word document files allowed.'
         )],
     )
+    accreditation = SelectField(
+        'Accreditation Status',
+        choices=[
+            ('', '-- Select Accreditation --'),
+            ('accredited', 'Accredited'),
+            ('not_accredited', 'Not Accredited'),
+        ],
+        validators=[Optional()],
+    )
     submit = SubmitField('Update Sample')
 
 
