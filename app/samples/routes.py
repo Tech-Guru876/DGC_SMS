@@ -615,12 +615,11 @@ def edit(sample_id):
 
     form = SampleEditForm(obj=sample)
     _apply_dropdown_choices(form)
-    # Only users explicitly granted the Edit Accreditation permission (and
+    # Any user explicitly granted the Edit Accreditation permission (and
     # admins, who implicitly hold all permissions) may change the accreditation
-    # status of a sample that already has one set.
-    can_edit_accreditation = (
-        current_user.has_permission(Permission.EDIT_ACCREDITATION)
-        and sample.is_accredited is not None
+    # status of a sample, whether or not one has already been set.
+    can_edit_accreditation = current_user.has_permission(
+        Permission.EDIT_ACCREDITATION
     )
     # Ensure the Laboratory dropdown is pre-selected with the current value.
     # obj=sample sets sample_type to the Branch enum, but the SelectField
@@ -680,7 +679,7 @@ def edit(sample_id):
         sample.expected_report_date = form.expected_report_date.data
 
         # Update accreditation status only when the current user is authorised
-        # and the sample already had an accreditation status set.
+        # to edit it.
         if can_edit_accreditation and form.accreditation.data:
             new_accredited = form.accreditation.data == 'accredited'
             if new_accredited != sample.is_accredited:

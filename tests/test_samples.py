@@ -2610,6 +2610,33 @@ def test_edit_accreditation_with_permission(app, client):
         assert sample.is_accredited is False
 
 
+def test_edit_accreditation_sets_status_when_unset(app, client):
+    """A permitted user can set accreditation on a sample that had none."""
+    from app.models import Permission, user_permissions
+    officer_id, *_ = _setup_users(app)
+    with app.app_context():
+        db.session.execute(user_permissions.insert().values(
+            user_id=officer_id, permission=Permission.EDIT_ACCREDITATION
+        ))
+        db.session.commit()
+    sid = _create_sample_direct(
+        app, uploaded_by=officer_id, lab_number='PH/EDIT3',
+        status=SampleStatus.CERTIFIED, is_accredited=None,
+    )
+
+    _login(client, 'officer')
+    resp = client.post(f'/samples/{sid}/edit', data={
+        'lab_number': 'PH/EDIT3',
+        'sample_name': 'Test Sample',
+        'sample_type': Branch.PHARMACEUTICAL.name,
+        'accreditation': 'accredited',
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    with app.app_context():
+        sample = db.session.get(Sample, sid)
+        assert sample.is_accredited is True
+
+
 def test_upload_and_delete_sample_image(app, client):
     """A sample image can be uploaded, previewed, and removed."""
     from app.models import SampleImage
