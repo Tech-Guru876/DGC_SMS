@@ -615,6 +615,12 @@ def edit(sample_id):
 
     form = SampleEditForm(obj=sample)
     _apply_dropdown_choices(form)
+    # Any user explicitly granted the Edit Accreditation permission (and
+    # admins, who implicitly hold all permissions) may change the accreditation
+    # status of a sample, whether or not one has already been set.
+    can_edit_accreditation = current_user.has_permission(
+        Permission.EDIT_ACCREDITATION
+    )
     # Ensure the Laboratory dropdown is pre-selected with the current value.
     # obj=sample sets sample_type to the Branch enum, but the SelectField
     # expects the enum .name string to match its choices.
@@ -628,6 +634,10 @@ def edit(sample_id):
                 ]
             else:
                 form.active_ingredient.data = sample.api
+    if request.method == 'GET' and sample.is_accredited is not None:
+        form.accreditation.data = (
+            'accredited' if sample.is_accredited else 'not_accredited'
+        )
     if form.validate_on_submit():
         new_lab_number = form.lab_number.data.strip()
         if new_lab_number != sample.lab_number:
@@ -637,7 +647,7 @@ def edit(sample_id):
             ).first()
             if conflict:
                 flash(f'Lab number "{new_lab_number}" is already in use by another sample.', 'danger')
-                return render_template('samples/edit.html', form=form, sample=sample)
+                return render_template('samples/edit.html', form=form, sample=sample, can_edit_accreditation=can_edit_accreditation)
             sample.lab_number = new_lab_number
         sample.sample_name = form.sample_name.data
         sample.sample_type = Branch[form.sample_type.data]
@@ -667,6 +677,33 @@ def edit(sample_id):
         sample.test_requested = form.test_requested.data or None
         sample.diagnosis_indicated = form.diagnosis_indicated.data or None
         sample.expected_report_date = form.expected_report_date.data
+
+        # Update accreditation status only when the current user is authorised
+        # to edit it.
+        if can_edit_accreditation and form.accreditation.data:
+            new_accredited = form.accreditation.data == 'accredited'
+            if new_accredited != sample.is_accredited:
+                sample.is_accredited = new_accredited
+                _add_history(
+                    sample, 'Accreditation Updated',
+                    (f'Accreditation status changed to '
+                     f'{"Accredited" if new_accredited else "Not Accredited"} '
+                     f'by {current_user.full_name}'),
+                    action_type='Edit', object_affected='Accreditation Status',
+                )
+                db.session.add(AuditLog(
+                    action='ACCREDITATION_UPDATED',
+                    entity_type='Sample',
+                    entity_id=sample.id,
+                    entity_label=sample.lab_number,
+                    details=json.dumps({
+                        'lab_number': sample.lab_number,
+                        'is_accredited': new_accredited,
+                        'updated_by': current_user.full_name,
+                    }),
+                    performed_by=current_user.id,
+                    performed_at=jamaica_now(),
+                ))
 
         scanned_upload = form.scanned_file.data
         if (
@@ -714,11 +751,11 @@ def edit(sample_id):
             db.session.rollback()
             current_app.logger.exception('Failed to save edits for sample %r', sample.lab_number)
             flash(f'An error occurred while saving the sample: {exc}', 'danger')
-            return render_template('samples/edit.html', form=form, sample=sample)
+            return render_template('samples/edit.html', form=form, sample=sample, can_edit_accreditation=can_edit_accreditation)
         flash('Sample updated.', 'success')
         return redirect(url_for('samples.detail', sample_id=sample.id))
 
-    return render_template('samples/edit.html', form=form, sample=sample)
+    return render_template('samples/edit.html', form=form, sample=sample, can_edit_accreditation=can_edit_accreditation)
 
 
 # ---------------------------------------------------------------------------

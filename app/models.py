@@ -87,6 +87,7 @@ class Permission(enum.Enum):
     granted the corresponding permission by an admin."""
     REGISTER_SAMPLE         = 'Register Sample'
     EDIT_SAMPLE             = 'Edit Sample'
+    EDIT_ACCREDITATION      = 'Edit Accreditation Status'
     ASSIGN_SAMPLE           = 'Assign Sample'
     SUBMIT_REPORT           = 'Submit Report'
     PRELIMINARY_REVIEW      = 'Preliminary Review'
